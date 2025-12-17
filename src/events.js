@@ -3,6 +3,10 @@
  * Handles triggers when a user navigates to a specific Loci in the Palace.
  */
 
+const synth = window.speechSynthesis;
+const utterance = new SpeechSynthesisUtterance("Welcome to the Foyer. Mind the gap.");
+synth.speak(utterance);
+
 class PalaceEvent {
     constructor(triggerId, type, payload) {
         this.triggerId = triggerId; // ID of the Room or Item
