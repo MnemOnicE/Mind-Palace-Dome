@@ -1,0 +1,7 @@
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /index.html HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /src/styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /src/app.js HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /src/gatekeeper.js HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /src/settings_manager.js HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /src/prompt_engine.js HTTP/1.1" 200 -
+127.0.0.1 - - [17/Dec/2025 16:54:35] "GET /assets/cobweb_overlay.svg HTTP/1.1" 200 -

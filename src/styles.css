@@ -1,0 +1,156 @@
+/* src/styles.css */
+
+/* --- Base Layout --- */
+.room-view {
+    padding: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+}
+
+/* --- Loci Items (Cards) --- */
+.loci-item {
+    display: inline-block;
+    margin: 10px;
+    padding: 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    border-radius: 5px;
+    text-align: center;
+    width: 180px;
+    vertical-align: top;
+    position: relative;
+    transition: transform 0.2s;
+}
+.loci-item:hover {
+    transform: scale(1.02);
+}
+.loci-item img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: #000;
+}
+.loci-label {
+    margin-top: 10px;
+    font-weight: bold;
+    color: #bb86fc;
+    min-height: 20px;
+}
+
+/* --- Dual Coding Logic (The Toggle) --- */
+
+/* RECALL Mode (Hover to Reveal) */
+body[data-dual-coding="hover"] .loci-item .loci-label {
+    opacity: 0;
+    filter: blur(5px);
+    transition: all 0.3s ease;
+}
+body[data-dual-coding="hover"] .loci-item:hover .loci-label {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(-2px);
+}
+body[data-dual-coding="hover"] .loci-item:hover .loci-label.revealed {
+    /* For manual reveal triggers if any */
+    opacity: 1;
+    filter: blur(0);
+}
+
+/* STUDY Mode (Always Visible) */
+body[data-dual-coding="always"] .loci-item .loci-label {
+    opacity: 1;
+    filter: blur(0);
+}
+
+/* --- Dust & Decay (The Gatekeeper Hint) --- */
+
+.room-card {
+    position: relative;
+    transition: filter 0.5s ease;
+    overflow: hidden;
+}
+
+/* 🕸️ THE DUST STATE */
+.room-card.dusty {
+    /* Filter Effect (Sepia + slight Blur for "fog of memory") */
+    /* Controlled by variable --decay-filter-strength */
+    filter: sepia(var(--decay-filter, 0.4)) blur(var(--decay-blur, 1px));
+}
+
+/* 🕸️ THE COBWEB OVERLAY */
+.room-card.dusty::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+
+    background-image: url('../assets/cobweb_overlay.svg');
+    background-size: cover;
+    opacity: var(--decay-texture-opacity, 0.3);
+    mix-blend-mode: overlay; /* Adjusted for better visibility on dark */
+    transition: opacity 0.5s ease;
+}
+
+/* 🖱️ CLEANING RITUAL (Hover) */
+.room-card.dusty:hover {
+    filter: sepia(0) blur(0);
+}
+.room-card.dusty:hover::after {
+    opacity: 0.1;
+}
+
+/* --- Settings Modal --- */
+.modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px);
+}
+.modal.hidden { display: none; }
+.modal-content {
+    background: #1e1e1e; padding: 25px; border-radius: 12px; width: 500px;
+    border: 1px solid #333;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: #e0e0e0;
+}
+.modal-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+}
+.modal-header h2 { margin: 0; color: #bb86fc; font-size: 1.5em; }
+.close-btn {
+    background: none; border: none; color: #aaa; font-size: 1.5em; cursor: pointer;
+}
+.close-btn:hover { color: #fff; }
+
+.tabs { display: flex; border-bottom: 1px solid #333; margin-bottom: 20px; }
+.tab {
+    background: none; border: none; color: #888; padding: 10px 20px; cursor: pointer;
+    font-family: inherit; font-size: 1em;
+}
+.tab:hover { color: #ccc; }
+.tab.active { color: #03dac6; border-bottom: 2px solid #03dac6; }
+
+.tab-content { display: none; animation: fadeIn 0.3s; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.setting-group { margin-bottom: 20px; }
+.setting-group label { display: block; margin-bottom: 8px; color: #03dac6; font-weight: bold; }
+.setting-group select {
+    width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;
+}
+.hint { font-size: 0.85em; color: #888; margin-top: 5px; font-style: italic; }
+
+.toggle-switch { display: flex; gap: 10px; }
+.toggle-switch button {
+    flex: 1; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 4px;
+}
+.toggle-switch button.active { /* Note: This class needs to be managed by JS */
+    background: #3700b3; color: #fff; border-color: #3700b3;
+}
+/* Just for now, we rely on the click handlers in the spec which called updateSetting directly.
+   Ideally we'd style the active state based on the current setting. */

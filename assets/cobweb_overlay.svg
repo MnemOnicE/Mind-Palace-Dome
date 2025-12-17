@@ -1,0 +1,15 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Radial lines -->
+  <line x1="100" y1="100" x2="0" y2="0" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="100" y2="0" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="200" y2="0" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="200" y2="100" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="200" y2="200" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="100" y2="200" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="0" y2="200" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+  <line x1="100" y1="100" x2="0" y2="100" stroke="#888" stroke-width="0.5" opacity="0.5"/>
+
+  <!-- Spiral threads -->
+  <path d="M 100 20 Q 120 20 120 40 T 100 60 T 80 40 T 100 20" stroke="#888" stroke-width="0.5" fill="none" opacity="0.3"/>
+  <path d="M 100 5 Q 150 5 150 50 T 100 95 T 50 50 T 100 5" stroke="#888" stroke-width="0.5" fill="none" opacity="0.3"/>
+</svg>
