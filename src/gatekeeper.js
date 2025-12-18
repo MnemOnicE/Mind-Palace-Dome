@@ -48,16 +48,57 @@ class Gatekeeper {
      */
     checkAnswer(userAnswer) {
         // Normalize strings (ignore case, whitespace) for fair grading
-        const isCorrect = this.normalize(userAnswer) === this.normalize(this.targetAnswer);
+        const normUser = this.normalize(userAnswer);
+        const normTarget = this.normalize(this.targetAnswer);
 
-        if (isCorrect) {
+        // 1. Exact Match
+        if (normUser === normTarget) {
             this.consecutiveSuccesses++;
             return { success: true, message: "The gate opens...", newStreak: this.consecutiveSuccesses };
-        } else {
-            // Failure in Dynamic mode resets progress to ensure mastery
-            if (this.type === 'DYNAMIC') this.consecutiveSuccesses = 0;
-            return { success: false, message: "The gate remains shut.", newStreak: 0 };
         }
+
+        // 2. Fuzzy Match
+        const dist = this.calculateLevenshtein(normUser, normTarget);
+        const threshold = this.getFuzzyThreshold(normTarget.length);
+
+        if (dist <= threshold) {
+            this.consecutiveSuccesses++;
+            return { success: true, message: `Close enough! The answer was ${this.targetAnswer}.`, newStreak: this.consecutiveSuccesses };
+        }
+
+        // 3. Failure
+        // Failure in Dynamic mode resets progress to ensure mastery
+        if (this.type === 'DYNAMIC') this.consecutiveSuccesses = 0;
+        return { success: false, message: "The gate remains shut.", newStreak: 0 };
+    }
+
+    getFuzzyThreshold(length) {
+        if (length <= 3) return 0; // "ATP" must be exact
+        if (length <= 8) return 1; // "Nucleus" allows 1 typo
+        return 2;                  // "Mitochondria" allows 2 typos
+    }
+
+    calculateLevenshtein(a, b) {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) {
+            matrix[i] = [i];
+        }
+        for (let j = 0; j <= a.length; j++) {
+            matrix[0][j] = j;
+        }
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
     }
 
     /**
