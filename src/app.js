@@ -1,58 +1,76 @@
 import { settingsManager } from './settings_manager.js';
+import { stateManager } from './state_manager.js';
 import Gatekeeper from './gatekeeper.js';
+import { enhancePrompt } from './prompt_engine.js';
 
-// Mock Data
-const currentRoom = {
-    id: 'foyer',
-    name: 'The Foyer',
-    items: [
-        { id: 1, concept: 'Mitochondria', visualURL: 'https://placehold.co/200x200/222/bb86fc?text=Powerhouse', visual: 'Powerhouse' },
-        { id: 2, concept: 'Nucleus', visualURL: 'https://placehold.co/200x200/222/03dac6?text=Brain', visual: 'Brain' },
-        { id: 3, concept: 'Ribosome', visualURL: 'https://placehold.co/200x200/222/cf6679?text=Chef', visual: 'Chef' }
-    ]
-};
+// Configuration
+const DECAY_INTERVAL_MS = 30000; // 30 seconds for demo (Real app: 24h)
 
-// Initialize Gatekeeper
-const gatekeeper = new Gatekeeper({
-    type: settingsManager.get('gatekeeper', 'mode'),
-    answer: 'Mitochondria', // Just for demo purposes
-    scalingThreshold: settingsManager.get('gatekeeper', 'scalingThreshold')
-});
+// State
+let activeGatekeeper = null;
+let currentTargetItem = null;
+let currentRoomId = 'foyer';
 
-function renderRoom(room) {
+function init() {
+    renderRoom(currentRoomId);
+    setupEventListeners();
+    syncSettingsUI();
+
+    // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
+    setInterval(() => renderRoom(currentRoomId), 5000);
+}
+
+function renderRoom(roomId) {
     const roomContainer = document.getElementById('room-view');
     if (!roomContainer) return;
 
-    roomContainer.innerHTML = ''; // Clear previous
+    const room = stateManager.getRoom(roomId);
+    if (!room) {
+        roomContainer.innerHTML = '<p>Room not found.</p>';
+        return;
+    }
+
+    roomContainer.innerHTML = '';
 
     room.items.forEach(item => {
         const itemCard = document.createElement('div');
-        // We add 'room-card' and 'dusty' to demonstrate the visual effect
-        // In a real app, 'dusty' would depend on last visit time
-        itemCard.className = `loci-item room-card dusty`;
 
-        // The Visual Hook
+        // Calculate Dust
+        const timeSince = Date.now() - (item.lastReviewed || 0);
+        const isDusty = timeSince > DECAY_INTERVAL_MS;
+
+        itemCard.className = `loci-item room-card ${isDusty ? 'dusty' : ''}`;
+        itemCard.dataset.id = item.id;
+
         const image = document.createElement('img');
         image.src = item.visualURL;
         image.alt = item.visual;
 
-        // The Verbal Hook
         const label = document.createElement('div');
         label.className = 'loci-label';
         label.innerText = item.concept;
+
+        // Add streak indicator
+        if (item.streak > 0) {
+            const streakBadge = document.createElement('span');
+            streakBadge.innerText = `🔥${item.streak}`;
+            streakBadge.style.cssText = 'position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); padding:2px 5px; border-radius:10px; font-size:0.8em;';
+            itemCard.appendChild(streakBadge);
+        }
 
         // EVENT: Mouseover triggers "Reveal" if in Recall Mode (Dual Coding)
         itemCard.addEventListener('mouseenter', () => {
             if (document.body.dataset.dualCoding === 'hover') {
                 label.classList.add('revealed');
-                // Audio hint could go here
             }
         });
 
-        // Remove 'dusty' on interaction (Cleaning Ritual)
-        itemCard.addEventListener('click', () => {
-            itemCard.classList.remove('dusty');
+        itemCard.addEventListener('mouseleave', () => {
+             label.classList.remove('revealed');
         });
+
+        // Click triggers cleaning or quiz
+        itemCard.addEventListener('click', () => handleCardClick(item, itemCard));
 
         itemCard.appendChild(image);
         itemCard.appendChild(label);
@@ -60,63 +78,188 @@ function renderRoom(room) {
     });
 }
 
-// Global UI Functions (attached to window for HTML onclicks)
+function handleCardClick(item, cardElement) {
+    // If not dusty, do nothing (already clean)
+    if (!cardElement.classList.contains('dusty')) return;
 
-window.toggleSettings = function() {
-    const modal = document.getElementById('settings-modal');
-    if (modal) {
-        modal.classList.toggle('hidden');
-    }
-};
+    const gkMode = settingsManager.get('gatekeeper', 'mode');
 
-window.showTab = function(tabName) {
-    // Hide all contents
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    // Deactivate all tabs
-    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-
-    // Show target
-    document.getElementById(`tab-${tabName}`).classList.add('active');
-    // Activate button (trickier since we don't have reference to button, but we can query by text or logic)
-    // For simplicity, we assume the button calling this updates its own class or we re-render?
-    // Let's just find the button that calls this function? No, easier to just rely on user clicking.
-    // Actually, we should update the tab button styles.
-    const buttons = document.querySelectorAll('.tab');
-    buttons.forEach(btn => {
-        if (btn.innerText.toLowerCase().includes(tabName) || btn.getAttribute('onclick').includes(tabName)) {
-            btn.classList.add('active');
-        }
+    // Initialize Gatekeeper for this specific battle
+    activeGatekeeper = new Gatekeeper({
+        type: gkMode,
+        answer: item.concept,
+        history: { successes: item.streak || 0 }
     });
-};
 
-window.updateSetting = function(category, key, value) {
-    const currentSettings = {};
-    if (!currentSettings[category]) currentSettings[category] = {};
-    currentSettings[category][key] = value;
+    currentTargetItem = { item, element: cardElement };
 
-    settingsManager.saveSettings(currentSettings);
+    // Generate Quiz
+    const room = stateManager.getRoom(currentRoomId);
+    const quiz = activeGatekeeper.generateQuiz(room.items);
+    launchQuizModal(quiz);
+}
 
-    // Re-render logic if needed (e.g. if Gatekeeper mode changed)
-    // renderRoom(currentRoom);
+// --- QUIZ LOGIC ---
+
+function launchQuizModal(quiz) {
+    const modal = document.getElementById('quiz-modal');
+    const questionEl = document.getElementById('quiz-question');
+    const area = document.getElementById('quiz-interaction-area');
+    const submitBtn = document.getElementById('btn-quiz-submit');
+    const feedback = document.getElementById('quiz-feedback');
+
+    questionEl.innerText = quiz.question;
+    area.innerHTML = ''; // Clear previous
+    feedback.innerText = '';
+    feedback.className = '';
+
+    if (quiz.mode === 'CHOICE') {
+        submitBtn.classList.add('hidden');
+        quiz.choices.forEach(choice => {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-option-btn';
+            btn.innerText = choice;
+            btn.onclick = () => handleQuizAttempt(choice);
+            area.appendChild(btn);
+        });
+    } else {
+        // INPUT Mode
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.id = 'quiz-input';
+        input.placeholder = 'Type the concept...';
+        input.autocomplete = 'off';
+
+        // Allow Enter key to submit
+        input.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') handleQuizAttempt(input.value);
+        });
+
+        area.appendChild(input);
+        submitBtn.classList.remove('hidden');
+        submitBtn.onclick = () => handleQuizAttempt(input.value);
+
+        // Focus input after a short delay for modal transition
+        setTimeout(() => input.focus(), 100);
+    }
+
+    modal.classList.remove('hidden');
+}
+
+function handleQuizAttempt(answer) {
+    if (!activeGatekeeper || !currentTargetItem) return;
+
+    const result = activeGatekeeper.checkAnswer(answer);
+    const feedback = document.getElementById('quiz-feedback');
+
+    if (result.success) {
+        feedback.innerText = result.message;
+        feedback.className = 'feedback-success';
+
+        // Success Action: Clean the dust!
+        currentTargetItem.element.classList.remove('dusty');
+
+        // Persist Success
+        stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, true);
+
+        // Re-render to update badges/state immediately
+        renderRoom(currentRoomId);
+
+        // Close modal after delay
+        setTimeout(() => {
+            document.getElementById('quiz-modal').classList.add('hidden');
+        }, 1500);
+    } else {
+        feedback.innerText = result.message;
+        feedback.className = 'feedback-failure';
+
+        // Persist Failure (Streak reset)
+        stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, false);
+        renderRoom(currentRoomId);
+    }
+}
+
+// --- SETTINGS & UI WIRING ---
+
+function setupEventListeners() {
+    // Top Menu
+    document.getElementById('btn-settings').addEventListener('click', toggleSettings);
+    document.getElementById('close-settings').addEventListener('click', toggleSettings);
+
+    document.getElementById('close-quiz').addEventListener('click', () => {
+        document.getElementById('quiz-modal').classList.add('hidden');
+    });
+
+    // Generate Button
+    document.getElementById('btn-generate').addEventListener('click', () => {
+        const input = document.getElementById('userInput').value;
+        const engineOutput = enhancePrompt(input);
+        document.getElementById('prompt-output').innerText = "Engineered Prompt sent to Gemini: " + engineOutput;
+    });
+
+    // Tab Navigation
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            const target = e.target.dataset.tab;
+            showTab(target);
+        });
+    });
+
+    // Select Changes
+    document.querySelectorAll('select[data-category]').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const cat = e.target.dataset.category;
+            const key = e.target.dataset.key;
+            settingsManager.update(cat, key, e.target.value);
+        });
+    });
+
+    // Toggle Buttons (Dual Coding)
+    document.querySelectorAll('.setting-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const cat = e.target.dataset.category;
+            const key = e.target.dataset.key;
+            const val = e.target.dataset.value;
+            settingsManager.update(cat, key, val);
+        });
+    });
+}
+
+function toggleSettings() {
+    document.getElementById('settings-modal').classList.toggle('hidden');
+}
+
+function showTab(tabName) {
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+
+    // Content
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+function syncSettingsUI() {
+    // Set initial values in inputs based on SettingsManager
+    const v = settingsManager.settings.visuals;
+    const g = settingsManager.settings.gatekeeper;
+    const a = settingsManager.settings.audio;
+
+    setVal('set-decay-style', v.decayStyle);
+    setVal('set-gk-mode', g.mode);
+}
+
+function setVal(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+}
+
+// Helper to update settings with nested merge
+settingsManager.update = function(category, key, value) {
+    const currentCat = this.settings[category] || {};
+    const newCat = { ...currentCat, [key]: value };
+    this.saveSettings({ [category]: newCat });
 };
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    // Initial Render
-    renderRoom(currentRoom);
-
-    // Setup Settings UI state from saved settings
-    const visualSettings = settingsManager.get('visuals', 'decayStyle');
-    const dualCoding = settingsManager.get('visuals', 'dualCoding');
-    const gkMode = settingsManager.get('gatekeeper', 'mode');
-
-    // Set initial values in inputs
-    const decaySelect = document.getElementById('set-decay-style');
-    if (decaySelect) decaySelect.value = visualSettings;
-
-    const gkSelect = document.getElementById('set-gk-mode');
-    if (gkSelect) gkSelect.value = gkMode;
-
-    // For dual coding buttons, we don't have IDs, so we skip setting active class for now
-    // But the functionality works.
-});
+document.addEventListener('DOMContentLoaded', init);
