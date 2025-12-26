@@ -1,41 +1,43 @@
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 def run(playwright):
-    browser = playwright.chromium.launch()
+    browser = playwright.chromium.launch(headless=True)
     page = browser.new_page()
 
-    # Listen to console logs
-    page.on("console", lambda msg: print(f"BROWSER LOG: {msg.text}"))
-    page.on("pageerror", lambda err: print(f"BROWSER ERROR: {err}"))
+    # Navigate to the app
+    page.goto("http://localhost:8080")
 
-    page.goto("http://localhost:8000")
+    # 1. Verify "Ritual Mode" Alert
+    # We need to handle the dialog (alert)
+    dialog_message = ""
+    def handle_dialog(dialog):
+        nonlocal dialog_message
+        dialog_message = dialog.message
+        dialog.accept()
 
-    # Wait for room to load
-    page.wait_for_selector(".room-card")
-    page.screenshot(path="verification/step1_initial.png")
+    page.on("dialog", handle_dialog)
 
-    # Find a dusty card
-    dusty_card = page.locator(".dusty").first
-    if dusty_card.count() > 0:
-        print("Found dusty card")
-        # Ensure we are clicking the element that has the listener
-        # In app.js: itemCard.addEventListener('click', ...)
-        # itemCard has class 'loci-item room-card dusty'
+    # Click Ritual Mode
+    page.get_by_role("button", name="Ritual Mode").click()
 
-        # Force click just in case of overlay issues
-        dusty_card.click(force=True)
+    # Check if the alert message was correct
+    assert "Ritual Mode is currently under construction" in dialog_message
+    print("✅ Ritual Mode alert verified.")
 
-        # Wait for quiz modal
-        try:
-            page.wait_for_selector("#quiz-modal", state="visible", timeout=5000)
-            print("Quiz Modal appeared")
-            page.screenshot(path="verification/step2_quiz_modal.png")
-        except Exception as e:
-            print(f"Modal did not appear: {e}")
-            page.screenshot(path="verification/step2_fail.png")
+    # 2. Verify CSS Styles
+    # Check if body background is correct (from CSS)
+    # The CSS sets background-color: #121212
+    bg_color = page.evaluate("window.getComputedStyle(document.body).backgroundColor")
+    assert bg_color == "rgb(18, 18, 18)"
+    print("✅ CSS Body Background verified.")
 
-    else:
-        print("No dusty card found")
+    # 3. Verify Settings Modal
+    page.get_by_role("button", name="⚙️ Settings").click()
+    expect(page.locator("#settings-modal")).to_be_visible()
+
+    # Take a screenshot of the settings modal
+    page.screenshot(path="verification/settings_modal.png")
+    print("📸 Screenshot taken: verification/settings_modal.png")
 
     browser.close()
 

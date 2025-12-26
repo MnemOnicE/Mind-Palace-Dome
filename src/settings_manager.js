@@ -77,6 +77,13 @@ class SettingsManager {
     get(category, key) {
         return this.settings[category]?.[key];
     }
+
+    // Update a specific setting and save
+    update(category, key, value) {
+        const currentCat = this.settings[category] || {};
+        const newCat = { ...currentCat, [key]: value };
+        this.saveSettings({ [category]: newCat });
+    }
 }
 
 export const settingsManager = new SettingsManager();

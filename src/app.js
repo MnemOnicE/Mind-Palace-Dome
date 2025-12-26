@@ -186,6 +186,11 @@ function setupEventListeners() {
     document.getElementById('btn-settings').addEventListener('click', toggleSettings);
     document.getElementById('close-settings').addEventListener('click', toggleSettings);
 
+    // Ritual Mode Button
+    document.getElementById('btn-ritual').addEventListener('click', () => {
+        alert("🕯️ Ritual Mode is currently under construction. Please check back later!");
+    });
+
     document.getElementById('close-quiz').addEventListener('click', () => {
         document.getElementById('quiz-modal').classList.add('hidden');
     });
@@ -253,13 +258,6 @@ function setVal(id, val) {
     const el = document.getElementById(id);
     if (el) el.value = val;
 }
-
-// Helper to update settings with nested merge
-settingsManager.update = function(category, key, value) {
-    const currentCat = this.settings[category] || {};
-    const newCat = { ...currentCat, [key]: value };
-    this.saveSettings({ [category]: newCat });
-};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', init);
