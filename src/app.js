@@ -30,52 +30,89 @@ function renderRoom(roomId) {
         return;
     }
 
-    roomContainer.innerHTML = '';
+    // Bolt's Optimization: Element Recycling
+    // We do NOT clear innerHTML. We check for existing elements by ID.
+    // If they exist, we just update the class (dust) and badge.
+
+    // 1. Mark all current children as "unverified" to handle deletions (if any)
+    const existingCards = new Map();
+    Array.from(roomContainer.children).forEach(child => {
+        if (child.dataset.id) existingCards.set(child.dataset.id, child);
+    });
 
     room.items.forEach(item => {
-        const itemCard = document.createElement('div');
-
-        // Calculate Dust
         const timeSince = Date.now() - (item.lastReviewed || 0);
         const isDusty = timeSince > DECAY_INTERVAL_MS;
+        let card = existingCards.get(String(item.id));
 
-        itemCard.className = `loci-item room-card ${isDusty ? 'dusty' : ''}`;
-        itemCard.dataset.id = item.id;
+        if (card) {
+            // UPDATE EXISTING
+            // Remove from map (so we know it's still valid)
+            existingCards.delete(String(item.id));
 
-        const image = document.createElement('img');
-        image.src = item.visualURL;
-        image.alt = item.visual;
+            // Update Dust Class
+            if (isDusty) card.classList.add('dusty');
+            else card.classList.remove('dusty');
 
-        const label = document.createElement('div');
-        label.className = 'loci-label';
-        label.innerText = item.concept;
-
-        // Add streak indicator
-        if (item.streak > 0) {
-            const streakBadge = document.createElement('span');
-            streakBadge.innerText = `🔥${item.streak}`;
-            streakBadge.style.cssText = 'position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); padding:2px 5px; border-radius:10px; font-size:0.8em;';
-            itemCard.appendChild(streakBadge);
-        }
-
-        // EVENT: Mouseover triggers "Reveal" if in Recall Mode (Dual Coding)
-        itemCard.addEventListener('mouseenter', () => {
-            if (document.body.dataset.dualCoding === 'hover') {
-                label.classList.add('revealed');
+            // Update Streak Badge
+            let badge = card.querySelector('.streak-badge');
+            if (item.streak > 0) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'streak-badge';
+                    badge.style.cssText = 'position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); padding:2px 5px; border-radius:10px; font-size:0.8em;';
+                    card.appendChild(badge);
+                }
+                badge.innerText = `🔥${item.streak}`;
+            } else if (badge) {
+                badge.remove();
             }
-        });
 
-        itemCard.addEventListener('mouseleave', () => {
-             label.classList.remove('revealed');
-        });
+        } else {
+            // CREATE NEW
+            card = document.createElement('div');
+            card.className = `loci-item room-card ${isDusty ? 'dusty' : ''}`;
+            card.dataset.id = item.id;
 
-        // Click triggers cleaning or quiz
-        itemCard.addEventListener('click', () => handleCardClick(item, itemCard));
+            const image = document.createElement('img');
+            image.src = item.visualURL;
+            image.alt = item.visual;
 
-        itemCard.appendChild(image);
-        itemCard.appendChild(label);
-        roomContainer.appendChild(itemCard);
+            const label = document.createElement('div');
+            label.className = 'loci-label';
+            label.innerText = item.concept;
+
+            // Add streak indicator
+            if (item.streak > 0) {
+                const streakBadge = document.createElement('span');
+                streakBadge.className = 'streak-badge';
+                streakBadge.innerText = `🔥${item.streak}`;
+                streakBadge.style.cssText = 'position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); padding:2px 5px; border-radius:10px; font-size:0.8em;';
+                card.appendChild(streakBadge);
+            }
+
+            // EVENT: Mouseover triggers "Reveal" if in Recall Mode (Dual Coding)
+            card.addEventListener('mouseenter', () => {
+                if (document.body.dataset.dualCoding === 'hover') {
+                    label.classList.add('revealed');
+                }
+            });
+
+            card.addEventListener('mouseleave', () => {
+                label.classList.remove('revealed');
+            });
+
+            // Click triggers cleaning or quiz
+            card.addEventListener('click', () => handleCardClick(item, card));
+
+            card.appendChild(image);
+            card.appendChild(label);
+            roomContainer.appendChild(card);
+        }
     });
+
+    // Remove any cards that are no longer in the room state
+    existingCards.forEach(card => card.remove());
 }
 
 function handleCardClick(item, cardElement) {
