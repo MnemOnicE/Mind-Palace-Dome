@@ -14,6 +14,10 @@ const DEFAULT_SETTINGS = {
         mode: 'dynamic', // 'input', 'choice', 'dynamic'
         scalingThreshold: 3
     },
+    ai: {
+        geminiKey: '',
+        generationMode: 'text' // 'text' or 'image' (future)
+    },
     visuals: {
         decayStyle: 'both', // 'filter', 'texture', 'both', 'none'
         dualCoding: 'hover', // 'always', 'hover'

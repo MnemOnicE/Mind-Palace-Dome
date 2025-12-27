@@ -29,6 +29,7 @@
                     <div class="tabs">
                         <button class="tab active" data-tab="visuals">👁️ Visuals</button>
                         <button class="tab" data-tab="gatekeeper">🛡️ Gatekeeper</button>
+                        <button class="tab" data-tab="ai">🤖 AI</button>
                         <button class="tab" data-tab="audio">🔊 Audio</button>
                     </div>
 
@@ -61,6 +62,14 @@
                                 <option value="choice">Guide (Multiple Choice)</option>
                                 <option value="input">Sentinel (Text Input)</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div id="tab-ai" class="tab-content">
+                        <div class="setting-group">
+                            <label>Gemini API Key</label>
+                            <input type="password" id="set-gemini-key" placeholder="AIzaSy..." style="width: 100%; padding: 8px;">
+                            <p class="hint">Your key is stored locally in your browser.</p>
                         </div>
                     </div>
 

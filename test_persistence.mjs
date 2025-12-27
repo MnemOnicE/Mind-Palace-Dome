@@ -36,20 +36,40 @@ assert.ok(room, 'Foyer should exist by default');
 assert.strictEqual(room.items.length, 3, 'Should have 3 items');
 console.log('✅ Default data loaded.');
 
-// 2. Test Update Stats (Success)
-console.log('Test 2: Updating Item Stats (Success)');
+// 2. Test Update Stats (Legacy Success)
+console.log('Test 2: Updating Item Stats (Legacy Success)');
 const itemId = 1;
 const initialItem = room.items.find(i => i.id === itemId);
-const initialStreak = initialItem.streak;
+const initialStreak = initialItem.streak || 0;
 
 stateManager.updateItemStats('foyer', itemId, true);
 
 const updatedRoom = stateManager.getRoom('foyer');
 const updatedItem = updatedRoom.items.find(i => i.id === itemId);
 
-assert.strictEqual(updatedItem.streak, initialStreak + 1, 'Streak should increment');
+assert.strictEqual(updatedItem.streak, initialStreak + 1, 'Streak should increment (Legacy Mode)');
 assert.ok(updatedItem.lastReviewed > 0, 'lastReviewed should be updated');
 console.log('✅ Update Success verified.');
+
+// 2b. Test SRS Update (Grade 5)
+console.log('Test 2b: Updating Item Stats (SRS Grade 5)');
+const itemId2 = 2;
+stateManager.updateItemStats('foyer', itemId2, 5); // Grade 5 = Easy
+const srsItem = stateManager.getRoom('foyer').items.find(i => i.id === itemId2);
+
+assert.strictEqual(srsItem.streak, 1, 'Streak should be 1');
+assert.strictEqual(srsItem.repetition, 1, 'Repetition should be 1');
+assert.strictEqual(srsItem.interval, 1, 'Interval should be 1 day');
+assert.ok(srsItem.dueDate > Date.now(), 'Due Date should be in future');
+console.log('✅ SRS Update verified.');
+
+// 2c. Test Item Editing
+console.log('Test 2c: Editing Item Details');
+stateManager.updateItemDetails('foyer', itemId2, 'Super Brain', 'http://new.img');
+const editedItem = stateManager.getRoom('foyer').items.find(i => i.id === itemId2);
+assert.strictEqual(editedItem.concept, 'Super Brain', 'Concept updated');
+assert.strictEqual(editedItem.visualURL, 'http://new.img', 'URL updated');
+console.log('✅ Item Editing verified.');
 
 // 3. Test Persistence (Simulate Reload)
 console.log('Test 3: Persistence across "Reload"');
