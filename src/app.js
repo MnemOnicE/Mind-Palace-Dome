@@ -2,9 +2,8 @@ import { settingsManager } from './settings_manager.js';
 import { stateManager } from './state_manager.js';
 import Gatekeeper from './gatekeeper.js';
 import { enhancePrompt } from './prompt_engine.js';
-
-// Configuration
-const DECAY_INTERVAL_MS = 30000; // 30 seconds for demo (Real app: 24h)
+import { calculateNextReview } from './srs_engine.js';
+import { RitualMode } from './ritual_mode.js';
 
 // State
 let activeGatekeeper = null;
@@ -35,9 +34,11 @@ function renderRoom(roomId) {
     room.items.forEach(item => {
         const itemCard = document.createElement('div');
 
-        // Calculate Dust
-        const timeSince = Date.now() - (item.lastReviewed || 0);
-        const isDusty = timeSince > DECAY_INTERVAL_MS;
+        // Calculate Dust (SRS Logic)
+        const now = Date.now();
+        // If dueDate is missing (old items), default to 0 (dusty immediately)
+        const dueDate = item.dueDate || 0;
+        const isDusty = now >= dueDate;
 
         itemCard.className = `loci-item room-card ${isDusty ? 'dusty' : ''}`;
         itemCard.dataset.id = item.id;
@@ -72,10 +73,86 @@ function renderRoom(roomId) {
         // Click triggers cleaning or quiz
         itemCard.addEventListener('click', () => handleCardClick(item, itemCard));
 
+        // Add Edit Button
+        const editBtn = document.createElement('button');
+        editBtn.className = 'edit-btn';
+        editBtn.innerText = '✏️';
+        editBtn.title = 'Edit Item';
+        editBtn.onclick = (e) => {
+            e.stopPropagation(); // Prevent card click
+            openEditModal(item);
+        };
+        itemCard.appendChild(editBtn);
+
         itemCard.appendChild(image);
         itemCard.appendChild(label);
         roomContainer.appendChild(itemCard);
     });
+}
+
+function openEditModal(item) {
+    // Reuse/Create a simple modal for editing
+    let modal = document.getElementById('edit-modal');
+    if (!modal) {
+        // Create it dynamically if missing
+        modal = document.createElement('div');
+        modal.id = 'edit-modal';
+        modal.className = 'modal hidden';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✏️ Edit Memory</h2>
+                    <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="setting-group">
+                        <label>Concept Name</label>
+                        <input type="text" id="edit-concept" style="width:100%; padding:8px;">
+                    </div>
+                    <div class="setting-group">
+                        <label>Image URL (or Paste Base64)</label>
+                        <input type="text" id="edit-url" style="width:100%; padding:8px;">
+                    </div>
+                     <div class="setting-group">
+                        <label>Upload Image</label>
+                        <input type="file" id="edit-file-upload" accept="image/*">
+                    </div>
+                    <button id="btn-save-edit" class="btn" style="width:100%; margin-top:10px;">Save Changes</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // Populate Data
+    document.getElementById('edit-concept').value = item.concept;
+    document.getElementById('edit-url').value = item.visualURL;
+
+    // File Upload Handler
+    const fileInput = document.getElementById('edit-file-upload');
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (readerEvent) => {
+                document.getElementById('edit-url').value = readerEvent.target.result; // Base64
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // Save Handler
+    document.getElementById('btn-save-edit').onclick = () => {
+        const newConcept = document.getElementById('edit-concept').value;
+        const newURL = document.getElementById('edit-url').value;
+
+        stateManager.updateItemDetails('foyer', item.id, newConcept, newURL);
+
+        modal.classList.add('hidden');
+        renderRoom('foyer');
+    };
+
+    modal.classList.remove('hidden');
 }
 
 function handleCardClick(item, cardElement) {
@@ -188,7 +265,13 @@ function setupEventListeners() {
 
     // Ritual Mode Button
     document.getElementById('btn-ritual').addEventListener('click', () => {
-        alert("🕯️ Ritual Mode is currently under construction. Please check back later!");
+        const ritual = new RitualMode();
+        ritual.start();
+    });
+
+    // Custom Event Listener for Ritual Completion (Refresh UI)
+    document.addEventListener('dome:refresh', () => {
+        renderRoom(currentRoomId);
     });
 
     document.getElementById('close-quiz').addEventListener('click', () => {
@@ -196,11 +279,31 @@ function setupEventListeners() {
     });
 
     // Generate Button
-    document.getElementById('btn-generate').addEventListener('click', () => {
+    document.getElementById('btn-generate').addEventListener('click', async () => {
         const input = document.getElementById('userInput').value;
-        const engineOutput = enhancePrompt(input);
-        document.getElementById('prompt-output').innerText = "Engineered Prompt sent to Gemini: " + engineOutput;
+        if (!input) return;
+
+        const apiKey = settingsManager.get('ai', 'geminiKey');
+        const outputArea = document.getElementById('prompt-output');
+
+        outputArea.innerText = "✨ Consulting the Oracle...";
+
+        const engineOutput = await enhancePrompt(input, apiKey);
+
+        if (apiKey && !engineOutput.includes('[Local Engine]')) {
+             outputArea.innerText = "🤖 Gemini says: " + engineOutput;
+        } else {
+             outputArea.innerText = engineOutput;
+        }
     });
+
+    // API Key Input Listener
+    const apiKeyInput = document.getElementById('set-gemini-key');
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('change', (e) => {
+            settingsManager.update('ai', 'geminiKey', e.target.value.trim());
+        });
+    }
 
     // Tab Navigation
     document.querySelectorAll('.tab').forEach(tab => {
@@ -248,10 +351,11 @@ function syncSettingsUI() {
     // Set initial values in inputs based on SettingsManager
     const v = settingsManager.settings.visuals;
     const g = settingsManager.settings.gatekeeper;
-    const a = settingsManager.settings.audio;
+    const ai = settingsManager.settings.ai;
 
     setVal('set-decay-style', v.decayStyle);
     setVal('set-gk-mode', g.mode);
+    setVal('set-gemini-key', ai.geminiKey || '');
 }
 
 function setVal(id, val) {

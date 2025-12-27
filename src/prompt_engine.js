@@ -16,25 +16,44 @@ const MODIFIERS = [
     "wearing a tiny tuxedo"
 ];
 
-function enhancePrompt(userConcept, context = "general") {
+async function enhancePrompt(userConcept, apiKey = null) {
     // Select a random modifier to enforce novelty
     const randomMod = MODIFIERS[Math.floor(Math.random() * MODIFIERS.length)];
     
-    // Structure the prompt for the AI (Gemini)
-    // We explicitly ask for "Memorable" and "Distinct" features.
-    const engineeredPrompt = `
-        Create a vivid, absurd, and highly memorable image of the following concept: "${userConcept}".
+    const instruction = `
+        Create a vivid, absurd, and highly memorable description of the following concept: "${userConcept}".
         
-        Guidelines for the image:
+        Guidelines:
         1. The object should be central and clear.
         2. Apply this visual style/modification: ${randomMod}.
         3. Make it weird. If it's a boring object, give it a personality or a strange texture.
-        4. High contrast, distinct silhouette.
-        
-        (This is for a memory palace technique, so visual distinctness is priority #1).
+        4. Describe it in 1-2 punchy sentences.
     `;
 
-    return engineeredPrompt;
+    // 1. If API Key exists, call Gemini
+    if (apiKey) {
+        try {
+            console.log("🤖 Calling Gemini API...");
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: instruction }] }]
+                })
+            });
+
+            const data = await response.json();
+            if (data.candidates && data.candidates[0].content) {
+                return data.candidates[0].content.parts[0].text;
+            }
+            console.warn("Gemini response unexpected:", data);
+        } catch (err) {
+            console.error("Gemini API failed, falling back to local engine.", err);
+        }
+    }
+
+    // 2. Fallback: Local Engineered Prompt String
+    return `[Local Engine] Description: ${userConcept} but ${randomMod}. (Add API Key in Settings for real AI)`;
 }
 
 export { enhancePrompt };
