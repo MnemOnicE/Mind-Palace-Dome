@@ -235,7 +235,10 @@ File: ./index.html
         <p>Construct. Populate. Remember.</p>
         
         <div class="menu">
-            <button class="btn">New Palace</button>
+            <div class="room-controls">
+                <select id="room-select" class="dropdown"></select>
+                <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
+            </div>
             <button id="btn-settings" class="btn">⚙️ Settings</button>
             <button id="btn-ritual" class="btn">Ritual Mode</button>
         </div>
@@ -333,7 +336,10 @@ File: ./index.html
         <div class="grid">
              <!-- The Room View (Replaces the old specific cards) -->
             <div class="card">
-                <h3>Current Room: The Foyer</h3>
+                <div class="room-header">
+                    <h3 id="current-room-name">Current Room: The Foyer</h3>
+                    <button id="btn-add-item" class="btn small-btn">➕ Add Memory</button>
+                </div>
                 <div id="room-view" class="room-view">
                     <!-- Items rendered here by app.js -->
                 </div>
@@ -480,6 +486,32 @@ console.log('Test 3: Persistence across "Reload"');
 const savedData = JSON.parse(localStorage.getItem('dome_state'));
 assert.strictEqual(savedData.rooms['foyer'].items[0].streak, 1, 'LocalStorage should have the updated streak');
 console.log('✅ Persistence verified.');
+
+// 4. Test Create Room
+console.log('Test 4: Create Room');
+const newRoom = stateManager.createRoom('The Library');
+assert.ok(newRoom, 'Room should be created');
+assert.strictEqual(newRoom.id, 'the-library', 'Room ID should be slugified');
+assert.strictEqual(newRoom.name, 'The Library', 'Room name should match');
+assert.strictEqual(stateManager.getRoom('the-library').name, 'The Library', 'Room should be retrievable');
+
+const duplicateRoom = stateManager.createRoom('The Library');
+assert.strictEqual(duplicateRoom, null, 'Should not create duplicate room');
+console.log('✅ Create Room verified.');
+
+// 5. Test Add Item
+console.log('Test 5: Add Item');
+const newItem = stateManager.addItem('the-library', 'Book of Secrets', 'http://book.img');
+assert.ok(newItem, 'Item should be added');
+assert.strictEqual(newItem.concept, 'Book of Secrets', 'Concept should match');
+assert.strictEqual(newItem.streak, 0, 'Default streak should be 0');
+assert.strictEqual(newItem.interval, 0, 'Default interval should be 0');
+assert.ok(newItem.id > 0, 'ID should be generated');
+
+const roomItems = stateManager.getRoom('the-library').items;
+assert.strictEqual(roomItems.length, 1, 'Room should have 1 item');
+assert.strictEqual(roomItems[0].id, newItem.id, 'Item should be in the room');
+console.log('✅ Add Item verified.');
 
 console.log('🎉 All Tests Passed!');
 
@@ -746,6 +778,7 @@ let currentTargetItem = null;
 let currentRoomId = 'foyer';
 
 function init() {
+    refreshRoomList(); // Populate dropdown
     renderRoom(currentRoomId);
     setupEventListeners();
     syncSettingsUI();
@@ -754,8 +787,26 @@ function init() {
     setInterval(() => renderRoom(currentRoomId), 5000);
 }
 
+function refreshRoomList() {
+    const select = document.getElementById('room-select');
+    if (!select) return;
+
+    select.innerHTML = '';
+    const rooms = stateManager.state.rooms;
+
+    Object.values(rooms).forEach(room => {
+        const option = document.createElement('option');
+        option.value = room.id;
+        option.innerText = room.name;
+        if (room.id === currentRoomId) option.selected = true;
+        select.appendChild(option);
+    });
+}
+
 function renderRoom(roomId) {
     const roomContainer = document.getElementById('room-view');
+    const title = document.getElementById('current-room-name');
+
     if (!roomContainer) return;
 
     const room = stateManager.getRoom(roomId);
@@ -764,6 +815,7 @@ function renderRoom(roomId) {
         return;
     }
 
+    if (title) title.innerText = `Current Room: ${room.name}`;
     roomContainer.innerHTML = '';
 
     room.items.forEach(item => {
@@ -825,7 +877,10 @@ function renderRoom(roomId) {
     });
 }
 
-function openEditModal(item) {
+function openEditModal(item = null) {
+    const isEditing = !!item;
+    const titleText = isEditing ? '✏️ Edit Memory' : '✨ New Memory';
+
     // Reuse/Create a simple modal for editing
     let modal = document.getElementById('edit-modal');
     if (!modal) {
@@ -836,17 +891,17 @@ function openEditModal(item) {
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>✏️ Edit Memory</h2>
+                    <h2 id="modal-title"></h2>
                     <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="setting-group">
                         <label>Concept Name</label>
-                        <input type="text" id="edit-concept" style="width:100%; padding:8px;">
+                        <input type="text" id="edit-concept" style="width:100%; padding:8px;" placeholder="e.g. Mitochondria">
                     </div>
                     <div class="setting-group">
                         <label>Image URL (or Paste Base64)</label>
-                        <input type="text" id="edit-url" style="width:100%; padding:8px;">
+                        <input type="text" id="edit-url" style="width:100%; padding:8px;" placeholder="https://...">
                     </div>
                      <div class="setting-group">
                         <label>Upload Image</label>
@@ -859,9 +914,11 @@ function openEditModal(item) {
         document.body.appendChild(modal);
     }
 
+    document.getElementById('modal-title').innerText = titleText;
+
     // Populate Data
-    document.getElementById('edit-concept').value = item.concept;
-    document.getElementById('edit-url').value = item.visualURL;
+    document.getElementById('edit-concept').value = isEditing ? item.concept : '';
+    document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
 
     // File Upload Handler
     const fileInput = document.getElementById('edit-file-upload');
@@ -881,10 +938,19 @@ function openEditModal(item) {
         const newConcept = document.getElementById('edit-concept').value;
         const newURL = document.getElementById('edit-url').value;
 
-        stateManager.updateItemDetails('foyer', item.id, newConcept, newURL);
+        if (!newConcept) {
+            alert("Concept name is required!");
+            return;
+        }
+
+        if (isEditing) {
+            stateManager.updateItemDetails(currentRoomId, item.id, newConcept, newURL);
+        } else {
+            stateManager.addItem(currentRoomId, newConcept, newURL);
+        }
 
         modal.classList.add('hidden');
-        renderRoom('foyer');
+        renderRoom(currentRoomId);
     };
 
     modal.classList.remove('hidden');
@@ -997,6 +1063,39 @@ function setupEventListeners() {
     // Top Menu
     document.getElementById('btn-settings').addEventListener('click', toggleSettings);
     document.getElementById('close-settings').addEventListener('click', toggleSettings);
+
+    // Room Controls
+    const roomSelect = document.getElementById('room-select');
+    if (roomSelect) {
+        roomSelect.addEventListener('change', (e) => {
+            currentRoomId = e.target.value;
+            renderRoom(currentRoomId);
+        });
+    }
+
+    const btnNewRoom = document.getElementById('btn-new-room');
+    if (btnNewRoom) {
+        btnNewRoom.addEventListener('click', () => {
+            const name = prompt("Name your new Room (e.g., 'The Library')");
+            if (name) {
+                const newRoom = stateManager.createRoom(name);
+                if (newRoom) {
+                    refreshRoomList();
+                    currentRoomId = newRoom.id;
+                    renderRoom(currentRoomId);
+                } else {
+                    alert("Room already exists or invalid name.");
+                }
+            }
+        });
+    }
+
+    const btnAddItem = document.getElementById('btn-add-item');
+    if (btnAddItem) {
+        btnAddItem.addEventListener('click', () => {
+            openEditModal(null); // Create Mode
+        });
+    }
 
     // Ritual Mode Button
     document.getElementById('btn-ritual').addEventListener('click', () => {
@@ -1899,6 +1998,46 @@ class StateManager {
     }
 
     /**
+     * Creates a new room.
+     */
+    createRoom(name) {
+        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        if (this.state.rooms[id]) return null; // Already exists
+
+        const newRoom = {
+            id: id,
+            name: name,
+            items: []
+        };
+        this.state.rooms[id] = newRoom;
+        this.saveState();
+        return newRoom;
+    }
+
+    /**
+     * Adds a new item to a room.
+     */
+    addItem(roomId, concept, visualURL) {
+        const room = this.state.rooms[roomId];
+        if (!room) return null;
+
+        const newItem = {
+            id: Date.now(),
+            concept: concept,
+            visualURL: visualURL || 'https://placehold.co/200x200?text=?',
+            visual: concept,
+            streak: 0,
+            lastReviewed: 0,
+            ...DEFAULT_SRS_STATS,
+            dueDate: 0
+        };
+
+        room.items.push(newItem);
+        this.saveState();
+        return newItem;
+    }
+
+    /**
      * Reset everything (Debug/Ritual)
      */
     reset() {
@@ -2170,6 +2309,81 @@ def run(playwright):
 
 with sync_playwright() as playwright:
     run(playwright)
+
+
+
+================================================================
+File: ./verification/verify_architect.py
+================================================================
+from playwright.sync_api import sync_playwright
+
+def verify_architect_mode():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        # 1. Load the app
+        # Since this is a simple static site, we might need a server or just open file
+        # But app.js uses modules, so we need a server.
+        # Assuming we start a server on port 8000
+        page.goto("http://localhost:8000")
+
+        # 2. Verify Room Select exists
+        page.wait_for_selector("#room-select")
+        print("✅ Room select found")
+
+        # 3. Create a new Room
+        # We need to handle the prompt dialog
+        page.on("dialog", lambda dialog: dialog.accept("The Kitchen"))
+
+        page.click("#btn-new-room")
+        print("✅ Clicked New Room")
+
+        # Wait for render
+        page.wait_for_timeout(1000)
+
+        # Check if title changed
+        title = page.text_content("#current-room-name")
+        if "The Kitchen" in title:
+            print("✅ Room switched to The Kitchen")
+        else:
+            print(f"❌ Failed to switch room. Title: {title}")
+
+        # 4. Add an Item
+        page.click("#btn-add-item")
+        print("✅ Clicked Add Item")
+
+        # Fill Modal
+        page.fill("#edit-concept", "The Fridge")
+        page.fill("#edit-url", "https://placehold.co/100")
+        page.click("#btn-save-edit")
+        print("✅ Saved new item")
+
+        page.wait_for_timeout(1000)
+
+        # 5. Verify Item Rendered
+        items = page.query_selector_all(".loci-item")
+        found = False
+        for item in items:
+            text = item.text_content()
+            if "The Fridge" in text:
+                found = True
+                break
+
+        if found:
+            print("✅ Item The Fridge found in DOM")
+        else:
+            print("❌ Item not found")
+
+        # Screenshot
+        page.screenshot(path="verification/architect_mode.png")
+        print("📸 Screenshot saved")
+
+        browser.close()
+
+if __name__ == "__main__":
+    verify_architect_mode()
 
 
 
