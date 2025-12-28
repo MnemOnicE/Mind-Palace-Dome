@@ -1,0 +1,51 @@
+name: Update Codebase Ingest
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'feature/**'
+    paths-ignore:
+      - 'ingest/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Generate Ingest Files
+        run: python scripts/generate_ingest.py
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [[ -n $(git status --porcelain ingest/) ]]; then
+            echo "changes_detected=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in ingest directory."
+          else
+            echo "changes_detected=false" >> $GITHUB_OUTPUT
+            echo "No changes detected."
+          fi
+
+      - name: Commit and Push changes
+        if: steps.check_changes.outputs.changes_detected == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ingest/
+          git commit -m "chore: update codebase ingest snapshots [skip ci]"
+          git push

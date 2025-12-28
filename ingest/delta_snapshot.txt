@@ -1,0 +1,48 @@
+--- Previous Snapshot
++++ Current Snapshot
+@@ -233,7 +233,7 @@
+     <div class="container">
+         <h1>dome-icile</h1>
+         <p>Construct. Populate. Remember.</p>
+-
++        
+         <div class="menu">
+             <button class="btn">New Palace</button>
+             <button id="btn-settings" class="btn">⚙️ Settings</button>
+@@ -1124,7 +1124,7 @@
+         this.openAIKey = config.openAIKey || null;
+         this.useESpeak = config.useESpeak || false; // Toggle for retro robot voice
+         this.synth = window.speechSynthesis;
+-
++        
+         // Initialize Web Speech Recognition (Chrome/Edge/Safari support varies)
+         this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+         this.recognizer = this.Recognition ? new this.Recognition() : null;
+@@ -1161,7 +1161,7 @@
+             return;
+         }
+         const utterance = new SpeechSynthesisUtterance(text);
+-
++        
+         // Optional: Select a specific voice preference here
+         // const voices = this.synth.getVoices();
+         // utterance.voice = voices.find(v => v.name.includes("Google US English"));
+@@ -1424,10 +1424,10 @@
+ async function enhancePrompt(userConcept, apiKey = null) {
+     // Select a random modifier to enforce novelty
+     const randomMod = MODIFIERS[Math.floor(Math.random() * MODIFIERS.length)];
+-
++    
+     const instruction = `
+         Create a vivid, absurd, and highly memorable description of the following concept: "${userConcept}".
+-
++        
+         Guidelines:
+         1. The object should be central and clear.
+         2. Apply this visual style/modification: ${randomMod}.
+@@ -2255,3 +2255,5 @@
+ 
+ with sync_playwright() as playwright:
+     run(playwright)
++
++
