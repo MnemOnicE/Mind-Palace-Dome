@@ -12,7 +12,10 @@
         <p>Construct. Populate. Remember.</p>
         
         <div class="menu">
-            <button class="btn">New Palace</button>
+            <div class="room-controls">
+                <select id="room-select" class="dropdown"></select>
+                <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
+            </div>
             <button id="btn-settings" class="btn">⚙️ Settings</button>
             <button id="btn-ritual" class="btn">Ritual Mode</button>
         </div>
@@ -110,7 +113,10 @@
         <div class="grid">
              <!-- The Room View (Replaces the old specific cards) -->
             <div class="card">
-                <h3>Current Room: The Foyer</h3>
+                <div class="room-header">
+                    <h3 id="current-room-name">Current Room: The Foyer</h3>
+                    <button id="btn-add-item" class="btn small-btn">➕ Add Memory</button>
+                </div>
                 <div id="room-view" class="room-view">
                     <!-- Items rendered here by app.js -->
                 </div>

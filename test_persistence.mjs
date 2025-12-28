@@ -89,4 +89,30 @@ const savedData = JSON.parse(localStorage.getItem('dome_state'));
 assert.strictEqual(savedData.rooms['foyer'].items[0].streak, 1, 'LocalStorage should have the updated streak');
 console.log('✅ Persistence verified.');
 
+// 4. Test Create Room
+console.log('Test 4: Create Room');
+const newRoom = stateManager.createRoom('The Library');
+assert.ok(newRoom, 'Room should be created');
+assert.strictEqual(newRoom.id, 'the-library', 'Room ID should be slugified');
+assert.strictEqual(newRoom.name, 'The Library', 'Room name should match');
+assert.strictEqual(stateManager.getRoom('the-library').name, 'The Library', 'Room should be retrievable');
+
+const duplicateRoom = stateManager.createRoom('The Library');
+assert.strictEqual(duplicateRoom, null, 'Should not create duplicate room');
+console.log('✅ Create Room verified.');
+
+// 5. Test Add Item
+console.log('Test 5: Add Item');
+const newItem = stateManager.addItem('the-library', 'Book of Secrets', 'http://book.img');
+assert.ok(newItem, 'Item should be added');
+assert.strictEqual(newItem.concept, 'Book of Secrets', 'Concept should match');
+assert.strictEqual(newItem.streak, 0, 'Default streak should be 0');
+assert.strictEqual(newItem.interval, 0, 'Default interval should be 0');
+assert.ok(newItem.id > 0, 'ID should be generated');
+
+const roomItems = stateManager.getRoom('the-library').items;
+assert.strictEqual(roomItems.length, 1, 'Room should have 1 item');
+assert.strictEqual(roomItems[0].id, newItem.id, 'Item should be in the room');
+console.log('✅ Add Item verified.');
+
 console.log('🎉 All Tests Passed!');
