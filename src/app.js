@@ -11,6 +11,7 @@ let currentTargetItem = null;
 let currentRoomId = 'foyer';
 
 function init() {
+    refreshRoomList(); // Populate dropdown
     renderRoom(currentRoomId);
     setupEventListeners();
     syncSettingsUI();
@@ -19,8 +20,26 @@ function init() {
     setInterval(() => renderRoom(currentRoomId), 5000);
 }
 
+function refreshRoomList() {
+    const select = document.getElementById('room-select');
+    if (!select) return;
+
+    select.innerHTML = '';
+    const rooms = stateManager.state.rooms;
+
+    Object.values(rooms).forEach(room => {
+        const option = document.createElement('option');
+        option.value = room.id;
+        option.innerText = room.name;
+        if (room.id === currentRoomId) option.selected = true;
+        select.appendChild(option);
+    });
+}
+
 function renderRoom(roomId) {
     const roomContainer = document.getElementById('room-view');
+    const title = document.getElementById('current-room-name');
+
     if (!roomContainer) return;
 
     const room = stateManager.getRoom(roomId);
@@ -29,6 +48,7 @@ function renderRoom(roomId) {
         return;
     }
 
+    if (title) title.innerText = `Current Room: ${room.name}`;
     roomContainer.innerHTML = '';
 
     room.items.forEach(item => {
@@ -90,7 +110,10 @@ function renderRoom(roomId) {
     });
 }
 
-function openEditModal(item) {
+function openEditModal(item = null) {
+    const isEditing = !!item;
+    const titleText = isEditing ? '✏️ Edit Memory' : '✨ New Memory';
+
     // Reuse/Create a simple modal for editing
     let modal = document.getElementById('edit-modal');
     if (!modal) {
@@ -101,17 +124,17 @@ function openEditModal(item) {
         modal.innerHTML = `
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>✏️ Edit Memory</h2>
+                    <h2 id="modal-title"></h2>
                     <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="setting-group">
                         <label>Concept Name</label>
-                        <input type="text" id="edit-concept" style="width:100%; padding:8px;">
+                        <input type="text" id="edit-concept" style="width:100%; padding:8px;" placeholder="e.g. Mitochondria">
                     </div>
                     <div class="setting-group">
                         <label>Image URL (or Paste Base64)</label>
-                        <input type="text" id="edit-url" style="width:100%; padding:8px;">
+                        <input type="text" id="edit-url" style="width:100%; padding:8px;" placeholder="https://...">
                     </div>
                      <div class="setting-group">
                         <label>Upload Image</label>
@@ -124,9 +147,11 @@ function openEditModal(item) {
         document.body.appendChild(modal);
     }
 
+    document.getElementById('modal-title').innerText = titleText;
+
     // Populate Data
-    document.getElementById('edit-concept').value = item.concept;
-    document.getElementById('edit-url').value = item.visualURL;
+    document.getElementById('edit-concept').value = isEditing ? item.concept : '';
+    document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
 
     // File Upload Handler
     const fileInput = document.getElementById('edit-file-upload');
@@ -146,10 +171,19 @@ function openEditModal(item) {
         const newConcept = document.getElementById('edit-concept').value;
         const newURL = document.getElementById('edit-url').value;
 
-        stateManager.updateItemDetails('foyer', item.id, newConcept, newURL);
+        if (!newConcept) {
+            alert("Concept name is required!");
+            return;
+        }
+
+        if (isEditing) {
+            stateManager.updateItemDetails(currentRoomId, item.id, newConcept, newURL);
+        } else {
+            stateManager.addItem(currentRoomId, newConcept, newURL);
+        }
 
         modal.classList.add('hidden');
-        renderRoom('foyer');
+        renderRoom(currentRoomId);
     };
 
     modal.classList.remove('hidden');
@@ -262,6 +296,39 @@ function setupEventListeners() {
     // Top Menu
     document.getElementById('btn-settings').addEventListener('click', toggleSettings);
     document.getElementById('close-settings').addEventListener('click', toggleSettings);
+
+    // Room Controls
+    const roomSelect = document.getElementById('room-select');
+    if (roomSelect) {
+        roomSelect.addEventListener('change', (e) => {
+            currentRoomId = e.target.value;
+            renderRoom(currentRoomId);
+        });
+    }
+
+    const btnNewRoom = document.getElementById('btn-new-room');
+    if (btnNewRoom) {
+        btnNewRoom.addEventListener('click', () => {
+            const name = prompt("Name your new Room (e.g., 'The Library')");
+            if (name) {
+                const newRoom = stateManager.createRoom(name);
+                if (newRoom) {
+                    refreshRoomList();
+                    currentRoomId = newRoom.id;
+                    renderRoom(currentRoomId);
+                } else {
+                    alert("Room already exists or invalid name.");
+                }
+            }
+        });
+    }
+
+    const btnAddItem = document.getElementById('btn-add-item');
+    if (btnAddItem) {
+        btnAddItem.addEventListener('click', () => {
+            openEditModal(null); // Create Mode
+        });
+    }
 
     // Ritual Mode Button
     document.getElementById('btn-ritual').addEventListener('click', () => {

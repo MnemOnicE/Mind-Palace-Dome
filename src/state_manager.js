@@ -107,6 +107,46 @@ class StateManager {
     }
 
     /**
+     * Creates a new room.
+     */
+    createRoom(name) {
+        const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        if (this.state.rooms[id]) return null; // Already exists
+
+        const newRoom = {
+            id: id,
+            name: name,
+            items: []
+        };
+        this.state.rooms[id] = newRoom;
+        this.saveState();
+        return newRoom;
+    }
+
+    /**
+     * Adds a new item to a room.
+     */
+    addItem(roomId, concept, visualURL) {
+        const room = this.state.rooms[roomId];
+        if (!room) return null;
+
+        const newItem = {
+            id: Date.now(),
+            concept: concept,
+            visualURL: visualURL || 'https://placehold.co/200x200?text=?',
+            visual: concept,
+            streak: 0,
+            lastReviewed: 0,
+            ...DEFAULT_SRS_STATS,
+            dueDate: 0
+        };
+
+        room.items.push(newItem);
+        this.saveState();
+        return newItem;
+    }
+
+    /**
      * Reset everything (Debug/Ritual)
      */
     reset() {
