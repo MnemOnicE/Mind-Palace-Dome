@@ -15,11 +15,22 @@ class AudioEngine {
     constructor(config = {}) {
         this.openAIKey = config.openAIKey || null;
         this.useESpeak = config.useESpeak || false; // Toggle for retro robot voice
-        this.synth = window.speechSynthesis;
+
+        // Initialize Speech Synthesis (Check if supported)
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            this.synth = window.speechSynthesis;
+        } else {
+            console.warn("AudioEngine: Speech Synthesis not supported in this environment.");
+            this.synth = null;
+        }
         
         // Initialize Web Speech Recognition (Chrome/Edge/Safari support varies)
-        this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        this.recognizer = this.Recognition ? new this.Recognition() : null;
+        if (typeof window !== 'undefined') {
+            this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognizer = this.Recognition ? new this.Recognition() : null;
+        } else {
+            this.recognizer = null;
+        }
 
         // MediaRecorder State
         this.mediaRecorder = null;
@@ -57,6 +68,11 @@ class AudioEngine {
     }
 
     speakWithBrowser(text) {
+        if (!this.synth) {
+            console.warn("AudioEngine: Cannot speak. Browser synthesis not supported.");
+            return;
+        }
+
         if (this.synth.speaking) {
             console.warn("Already speaking...");
             return;
@@ -121,7 +137,7 @@ class AudioEngine {
     async startRecording() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             console.error("Media Devices API not supported.");
-            return false;
+            return { success: false, error: "Media Devices API not supported in this browser." };
         }
 
         try {
@@ -135,10 +151,10 @@ class AudioEngine {
 
             this.mediaRecorder.start();
             console.log("🎙️ Recording started...");
-            return true;
+            return { success: true };
         } catch (err) {
             console.error("Could not start recording:", err);
-            return false;
+            return { success: false, error: err.message };
         }
     }
 
