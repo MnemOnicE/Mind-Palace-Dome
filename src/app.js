@@ -1,6 +1,7 @@
 import { settingsManager } from './settings_manager.js';
 import { stateManager } from './state_manager.js';
 import Gatekeeper from './gatekeeper.js';
+import AudioEngine from './audio_engine.js';
 import { enhancePrompt } from './prompt_engine.js';
 import { calculateNextReview } from './srs_engine.js';
 import { RitualMode } from './ritual_mode.js';
@@ -9,12 +10,17 @@ import { RitualMode } from './ritual_mode.js';
 let activeGatekeeper = null;
 let currentTargetItem = null;
 let currentRoomId = 'foyer';
+let audioEngine = new AudioEngine();
 
 function init() {
     refreshRoomList(); // Populate dropdown
     renderRoom(currentRoomId);
     setupEventListeners();
     syncSettingsUI();
+
+    // Sync Audio Config
+    const au = settingsManager.settings.audio;
+    audioEngine.setConfig({ openAIKey: au.openAIKey });
 
     // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
     setInterval(() => renderRoom(currentRoomId), 5000);
@@ -140,6 +146,12 @@ function openEditModal(item = null) {
                         <label>Upload Image</label>
                         <input type="file" id="edit-file-upload" accept="image/*">
                     </div>
+
+                    <div class="setting-group" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
+                        <label>🎙️ Voice Input (Concept)</label>
+                        <button id="btn-mic-concept" class="btn small-btn" style="width:100%;">Record</button>
+                    </div>
+
                     <button id="btn-save-edit" class="btn" style="width:100%; margin-top:10px;">Save Changes</button>
                 </div>
             </div>
@@ -150,7 +162,14 @@ function openEditModal(item = null) {
     document.getElementById('modal-title').innerText = titleText;
 
     // Populate Data
-    document.getElementById('edit-concept').value = isEditing ? item.concept : '';
+    const conceptInput = document.getElementById('edit-concept');
+    conceptInput.value = isEditing ? item.concept : '';
+
+    // Wire up Mic
+    const micBtn = document.getElementById('btn-mic-concept');
+    setupMicButton(micBtn, (text) => {
+        conceptInput.value = text; // Overwrite or append? Overwrite for now.
+    });
     document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
 
     // File Upload Handler
@@ -219,6 +238,13 @@ function launchQuizModal(quiz) {
     const submitBtn = document.getElementById('btn-quiz-submit');
     const feedback = document.getElementById('quiz-feedback');
 
+    // TTS: Speak the question if engine is enabled
+    // Only if not already speaking to avoid chaos
+    const ttsEngine = settingsManager.get('audio', 'engine');
+    // Simple check: if we are using browser/hybrid, we can try to speak
+    // Note: Chrome requires user interaction first, so this might fail if it's the very first action
+    audioEngine.speak(quiz.question);
+
     questionEl.innerText = quiz.question;
     area.innerHTML = ''; // Clear previous
     feedback.innerText = '';
@@ -247,6 +273,21 @@ function launchQuizModal(quiz) {
         });
 
         area.appendChild(input);
+
+        // Add Mic Button for Quiz
+        const micContainer = document.createElement('div');
+        micContainer.style.marginTop = '10px';
+        const micBtn = document.createElement('button');
+        micBtn.className = 'btn small-btn';
+        micBtn.innerText = '🎙️ Answer';
+        micContainer.appendChild(micBtn);
+        area.appendChild(micContainer);
+
+        setupMicButton(micBtn, (text) => {
+            input.value = text;
+            // Optional: Auto-submit? Let's wait for user confirmation
+        });
+
         submitBtn.classList.remove('hidden');
         submitBtn.onclick = () => handleQuizAttempt(input.value);
 
@@ -260,6 +301,7 @@ function launchQuizModal(quiz) {
 function handleQuizAttempt(answer) {
     if (!activeGatekeeper || !currentTargetItem) return;
 
+    // Normalize answer (trim/lowercase done in Gatekeeper, but good practice here too)
     const result = activeGatekeeper.checkAnswer(answer);
     const feedback = document.getElementById('quiz-feedback');
 
@@ -372,6 +414,15 @@ function setupEventListeners() {
         });
     }
 
+    const openAIKeyInput = document.getElementById('set-openai-key');
+    if (openAIKeyInput) {
+        openAIKeyInput.addEventListener('change', (e) => {
+            const key = e.target.value.trim();
+            settingsManager.update('audio', 'openAIKey', key);
+            audioEngine.setConfig({ openAIKey: key });
+        });
+    }
+
     // Tab Navigation
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', (e) => {
@@ -419,10 +470,14 @@ function syncSettingsUI() {
     const v = settingsManager.settings.visuals;
     const g = settingsManager.settings.gatekeeper;
     const ai = settingsManager.settings.ai;
+    const au = settingsManager.settings.audio;
 
     setVal('set-decay-style', v.decayStyle);
     setVal('set-gk-mode', g.mode);
     setVal('set-gemini-key', ai.geminiKey || '');
+    setVal('set-openai-key', au.openAIKey || '');
+    setVal('set-recording-mode', au.recordingMode);
+    setVal('set-tts-engine', au.engine);
 }
 
 function setVal(id, val) {
@@ -432,3 +487,77 @@ function setVal(id, val) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', init);
+
+// --- AUDIO HELPER ---
+
+function setupMicButton(buttonElement, onTranscript) {
+    if (!buttonElement) return;
+
+    // Remove old listeners (cloning is a quick hack to clear listeners)
+    const newBtn = buttonElement.cloneNode(true);
+    buttonElement.parentNode.replaceChild(newBtn, buttonElement);
+    buttonElement = newBtn;
+
+    let isRecording = false;
+    let holdTimeout = null;
+
+    buttonElement.addEventListener('mousedown', async () => {
+        const mode = settingsManager.get('audio', 'recordingMode');
+
+        if (mode === 'hold') {
+            console.log("🎤 Hold Mode: Start");
+            const started = await audioEngine.startRecording();
+            if (started) {
+                buttonElement.classList.add('recording');
+                buttonElement.innerText = '🔴 Listening...';
+            }
+        }
+    });
+
+    buttonElement.addEventListener('mouseup', async () => {
+        const mode = settingsManager.get('audio', 'recordingMode');
+
+        if (mode === 'hold') {
+             console.log("🎤 Hold Mode: Stop");
+             buttonElement.classList.remove('recording');
+             buttonElement.innerText = '⏳ Processing...';
+             try {
+                const text = await audioEngine.stopRecording();
+                buttonElement.innerText = '🎙️';
+                onTranscript(text);
+             } catch (err) {
+                 console.error(err);
+                 buttonElement.innerText = '⚠️ Error';
+             }
+        }
+    });
+
+    buttonElement.addEventListener('click', async () => {
+        const mode = settingsManager.get('audio', 'recordingMode');
+
+        if (mode === 'toggle') {
+            if (!isRecording) {
+                console.log("🎤 Toggle Mode: Start");
+                const started = await audioEngine.startRecording();
+                if (started) {
+                    isRecording = true;
+                    buttonElement.classList.add('recording');
+                    buttonElement.innerText = '🔴 Stop';
+                }
+            } else {
+                console.log("🎤 Toggle Mode: Stop");
+                isRecording = false;
+                buttonElement.classList.remove('recording');
+                buttonElement.innerText = '⏳ Processing...';
+                try {
+                    const text = await audioEngine.stopRecording();
+                    buttonElement.innerText = '🎙️';
+                    onTranscript(text);
+                } catch (err) {
+                    console.error(err);
+                    buttonElement.innerText = '⚠️ Error';
+                }
+            }
+        }
+    });
+}

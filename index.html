@@ -78,10 +78,22 @@
 
                      <div id="tab-audio" class="tab-content">
                         <div class="setting-group">
+                            <label>OpenAI API Key (Whisper/TTS)</label>
+                            <input type="password" id="set-openai-key" placeholder="sk-..." style="width: 100%; padding: 8px;">
+                            <p class="hint">Required for Whisper and High-Fidelity TTS.</p>
+                        </div>
+                        <div class="setting-group">
+                            <label>Recording Mode</label>
+                            <select id="set-recording-mode" data-category="audio" data-key="recordingMode">
+                                <option value="toggle">Toggle (Click to start/stop)</option>
+                                <option value="hold">Push-to-Talk (Hold down)</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
                             <label>Voice Engine</label>
-                            <select data-category="audio" data-key="engine">
-                                <option value="hybrid">Hybrid (OpenAI + Browser)</option>
+                            <select id="set-tts-engine" data-category="audio" data-key="engine">
                                 <option value="browser">Browser Native</option>
+                                <option value="openai">OpenAI (Requires Key)</option>
                             </select>
                         </div>
                     </div>
