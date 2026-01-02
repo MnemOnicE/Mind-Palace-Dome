@@ -6,7 +6,9 @@
 
 const DEFAULT_SETTINGS = {
     audio: {
-        engine: 'hybrid', // 'hybrid', 'browser', 'espeak'
+        engine: 'browser', // 'browser', 'openai'
+        openAIKey: '',
+        recordingMode: 'toggle', // 'toggle', 'hold'
         voiceId: 'default',
         volume: 0.8
     },

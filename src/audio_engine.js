@@ -20,6 +20,15 @@ class AudioEngine {
         // Initialize Web Speech Recognition (Chrome/Edge/Safari support varies)
         this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.recognizer = this.Recognition ? new this.Recognition() : null;
+
+        // MediaRecorder State
+        this.mediaRecorder = null;
+        this.audioChunks = [];
+    }
+
+    setConfig(config) {
+        if (config.openAIKey !== undefined) this.openAIKey = config.openAIKey;
+        // Update other config if needed
     }
 
     // --- TEXT TO SPEECH (The Palace Speaks to You) ---
@@ -95,7 +104,6 @@ class AudioEngine {
         console.log("👂 Listening...");
 
         // 1. Browser Native (Real-time, Free)
-        // We use this for immediate feedback or if no API key
         if (this.recognizer && !this.openAIKey) {
             this.recognizer.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
@@ -105,10 +113,87 @@ class AudioEngine {
             return;
         }
 
-        // 2. OpenAI Whisper (High Fidelity, requires recording file)
-        // Note: Implementation requires a MediaRecorder logic to capture a Blob first.
-        // This is a placeholder for where you'd pipe the Blob.
-        console.log("For Whisper, we need to implement MediaRecorder capture first.");
+        console.log("Wait for explicit startRecording/stopRecording for Whisper.");
+    }
+
+    // --- WHISPER INTEGRATION ---
+
+    async startRecording() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.error("Media Devices API not supported.");
+            return false;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.mediaRecorder = new MediaRecorder(stream);
+            this.audioChunks = [];
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                this.audioChunks.push(event.data);
+            };
+
+            this.mediaRecorder.start();
+            console.log("🎙️ Recording started...");
+            return true;
+        } catch (err) {
+            console.error("Could not start recording:", err);
+            return false;
+        }
+    }
+
+    async stopRecording() {
+        return new Promise((resolve, reject) => {
+            if (!this.mediaRecorder) {
+                reject("No active recorder.");
+                return;
+            }
+
+            this.mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' }); // OpenAI accepts webm
+                this.audioChunks = [];
+                console.log("⏹️ Recording stopped. Blob created.");
+
+                if (this.openAIKey) {
+                    try {
+                        const text = await this.transcribeWithWhisper(audioBlob);
+                        resolve(text);
+                    } catch (err) {
+                        console.error("Whisper transcription failed:", err);
+                        reject(err);
+                    }
+                } else {
+                    resolve("[Audio Captured but no OpenAI Key provided]");
+                }
+            };
+
+            this.mediaRecorder.stop();
+            // Stop stream tracks to release microphone
+            this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        });
+    }
+
+    async transcribeWithWhisper(audioBlob) {
+        console.log("✨ Sending audio to Whisper...");
+        const formData = new FormData();
+        formData.append("file", audioBlob, "recording.webm");
+        formData.append("model", "whisper-1");
+
+        const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+            method: "POST",
+            headers: {
+                "Authorization": `Bearer ${this.openAIKey}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`OpenAI Error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("📝 Transcript:", data.text);
+        return data.text;
     }
 }
 
