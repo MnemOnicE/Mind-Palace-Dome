@@ -17,12 +17,12 @@ graph TD;
         App --> StateM[State Manager];
         App --> SettingsM[Settings Manager];
         App --> AudioE[Audio Engine];
-        App --> PromptE[Prompt Engine (Foundry)];
+        App --> PromptE["Prompt Engine (Foundry)"];
     end
 
     subgraph "Logic Modules"
         StateM --> SRS[SRS Engine];
-        App --> GateK[Gatekeeper (Quiz)];
+        App --> GateK["Gatekeeper (Quiz)"];
         App --> Ritual[Ritual Mode];
     end
 
@@ -33,7 +33,7 @@ graph TD;
 
     subgraph "External APIs"
         PromptE --> Gemini[Google Gemini API];
-        AudioE --> OpenAI[OpenAI API (Optional)];
+        AudioE --> OpenAI["OpenAI API (Optional)"];
     end
 ```
 
