@@ -506,10 +506,12 @@ function setupMicButton(buttonElement, onTranscript) {
 
         if (mode === 'hold') {
             console.log("🎤 Hold Mode: Start");
-            const started = await audioEngine.startRecording();
-            if (started) {
+            const result = await audioEngine.startRecording();
+            if (result.success) {
                 buttonElement.classList.add('recording');
                 buttonElement.innerText = '🔴 Listening...';
+            } else {
+                alert(`Cannot record: ${result.error}`);
             }
         }
     });
@@ -538,11 +540,13 @@ function setupMicButton(buttonElement, onTranscript) {
         if (mode === 'toggle') {
             if (!isRecording) {
                 console.log("🎤 Toggle Mode: Start");
-                const started = await audioEngine.startRecording();
-                if (started) {
+                const result = await audioEngine.startRecording();
+                if (result.success) {
                     isRecording = true;
                     buttonElement.classList.add('recording');
                     buttonElement.innerText = '🔴 Stop';
+                } else {
+                    alert(`Cannot record: ${result.error}`);
                 }
             } else {
                 console.log("🎤 Toggle Mode: Stop");
