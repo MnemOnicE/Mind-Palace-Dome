@@ -1,1 +1,317 @@
-No changes detected.
+--- Previous Snapshot
++++ Current Snapshot
+@@ -1738,10 +1738,12 @@
+ 
+         if (mode === 'hold') {
+             console.log("🎤 Hold Mode: Start");
+-            const started = await audioEngine.startRecording();
+-            if (started) {
++            const result = await audioEngine.startRecording();
++            if (result.success) {
+                 buttonElement.classList.add('recording');
+                 buttonElement.innerText = '🔴 Listening...';
++            } else {
++                alert(`Cannot record: ${result.error}`);
+             }
+         }
+     });
+@@ -1770,11 +1772,13 @@
+         if (mode === 'toggle') {
+             if (!isRecording) {
+                 console.log("🎤 Toggle Mode: Start");
+-                const started = await audioEngine.startRecording();
+-                if (started) {
++                const result = await audioEngine.startRecording();
++                if (result.success) {
+                     isRecording = true;
+                     buttonElement.classList.add('recording');
+                     buttonElement.innerText = '🔴 Stop';
++                } else {
++                    alert(`Cannot record: ${result.error}`);
+                 }
+             } else {
+                 console.log("🎤 Toggle Mode: Stop");
+@@ -1816,11 +1820,22 @@
+     constructor(config = {}) {
+         this.openAIKey = config.openAIKey || null;
+         this.useESpeak = config.useESpeak || false; // Toggle for retro robot voice
+-        this.synth = window.speechSynthesis;
++
++        // Initialize Speech Synthesis (Check if supported)
++        if (typeof window !== 'undefined' && window.speechSynthesis) {
++            this.synth = window.speechSynthesis;
++        } else {
++            console.warn("AudioEngine: Speech Synthesis not supported in this environment.");
++            this.synth = null;
++        }
+         
+         // Initialize Web Speech Recognition (Chrome/Edge/Safari support varies)
+-        this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+-        this.recognizer = this.Recognition ? new this.Recognition() : null;
++        if (typeof window !== 'undefined') {
++            this.Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
++            this.recognizer = this.Recognition ? new this.Recognition() : null;
++        } else {
++            this.recognizer = null;
++        }
+ 
+         // MediaRecorder State
+         this.mediaRecorder = null;
+@@ -1858,6 +1873,11 @@
+     }
+ 
+     speakWithBrowser(text) {
++        if (!this.synth) {
++            console.warn("AudioEngine: Cannot speak. Browser synthesis not supported.");
++            return;
++        }
++
+         if (this.synth.speaking) {
+             console.warn("Already speaking...");
+             return;
+@@ -1922,7 +1942,7 @@
+     async startRecording() {
+         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+             console.error("Media Devices API not supported.");
+-            return false;
++            return { success: false, error: "Media Devices API not supported in this browser." };
+         }
+ 
+         try {
+@@ -1936,10 +1956,10 @@
+ 
+             this.mediaRecorder.start();
+             console.log("🎙️ Recording started...");
+-            return true;
++            return { success: true };
+         } catch (err) {
+             console.error("Could not start recording:", err);
+-            return false;
++            return { success: false, error: err.message };
+         }
+     }
+ 
+@@ -2217,7 +2237,7 @@
+     if (apiKey) {
+         try {
+             console.log("🤖 Calling Gemini API...");
+-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
++            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+@@ -2941,214 +2961,3 @@
+ .feedback-failure { color: #cf6679; }
+ 
+ 
+-
+-================================================================
+-File: ./verification/verify_app.py
+-================================================================
+-from playwright.sync_api import sync_playwright, expect
+-
+-def run(playwright):
+-    browser = playwright.chromium.launch(headless=True)
+-    page = browser.new_page()
+-
+-    # Navigate to the app
+-    page.goto("http://localhost:8080")
+-
+-    # 1. Verify "Ritual Mode" Alert
+-    # We need to handle the dialog (alert)
+-    dialog_message = ""
+-    def handle_dialog(dialog):
+-        nonlocal dialog_message
+-        dialog_message = dialog.message
+-        dialog.accept()
+-
+-    page.on("dialog", handle_dialog)
+-
+-    # Click Ritual Mode
+-    page.get_by_role("button", name="Ritual Mode").click()
+-
+-    # Check if the alert message was correct
+-    assert "Ritual Mode is currently under construction" in dialog_message
+-    print("✅ Ritual Mode alert verified.")
+-
+-    # 2. Verify CSS Styles
+-    # Check if body background is correct (from CSS)
+-    # The CSS sets background-color: #121212
+-    bg_color = page.evaluate("window.getComputedStyle(document.body).backgroundColor")
+-    assert bg_color == "rgb(18, 18, 18)"
+-    print("✅ CSS Body Background verified.")
+-
+-    # 3. Verify Settings Modal
+-    page.get_by_role("button", name="⚙️ Settings").click()
+-    expect(page.locator("#settings-modal")).to_be_visible()
+-
+-    # Take a screenshot of the settings modal
+-    page.screenshot(path="verification/settings_modal.png")
+-    print("📸 Screenshot taken: verification/settings_modal.png")
+-
+-    browser.close()
+-
+-with sync_playwright() as playwright:
+-    run(playwright)
+-
+-
+-
+-================================================================
+-File: ./verification/verify_architect.py
+-================================================================
+-from playwright.sync_api import sync_playwright
+-
+-def verify_architect_mode():
+-    with sync_playwright() as p:
+-        browser = p.chromium.launch(headless=True)
+-        context = browser.new_context()
+-        page = context.new_page()
+-
+-        # 1. Load the app
+-        # Since this is a simple static site, we might need a server or just open file
+-        # But app.js uses modules, so we need a server.
+-        # Assuming we start a server on port 8000
+-        page.goto("http://localhost:8000")
+-
+-        # 2. Verify Room Select exists
+-        page.wait_for_selector("#room-select")
+-        print("✅ Room select found")
+-
+-        # 3. Create a new Room
+-        # We need to handle the prompt dialog
+-        page.on("dialog", lambda dialog: dialog.accept("The Kitchen"))
+-
+-        page.click("#btn-new-room")
+-        print("✅ Clicked New Room")
+-
+-        # Wait for render
+-        page.wait_for_timeout(1000)
+-
+-        # Check if title changed
+-        title = page.text_content("#current-room-name")
+-        if "The Kitchen" in title:
+-            print("✅ Room switched to The Kitchen")
+-        else:
+-            print(f"❌ Failed to switch room. Title: {title}")
+-
+-        # 4. Add an Item
+-        page.click("#btn-add-item")
+-        print("✅ Clicked Add Item")
+-
+-        # Fill Modal
+-        page.fill("#edit-concept", "The Fridge")
+-        page.fill("#edit-url", "https://placehold.co/100")
+-        page.click("#btn-save-edit")
+-        print("✅ Saved new item")
+-
+-        page.wait_for_timeout(1000)
+-
+-        # 5. Verify Item Rendered
+-        items = page.query_selector_all(".loci-item")
+-        found = False
+-        for item in items:
+-            text = item.text_content()
+-            if "The Fridge" in text:
+-                found = True
+-                break
+-
+-        if found:
+-            print("✅ Item The Fridge found in DOM")
+-        else:
+-            print("❌ Item not found")
+-
+-        # Screenshot
+-        page.screenshot(path="verification/architect_mode.png")
+-        print("📸 Screenshot saved")
+-
+-        browser.close()
+-
+-if __name__ == "__main__":
+-    verify_architect_mode()
+-
+-
+-
+-================================================================
+-File: ./verification/verify_ritual.py
+-================================================================
+-from playwright.sync_api import sync_playwright, expect
+-import time
+-
+-def run(playwright):
+-    browser = playwright.chromium.launch(headless=True)
+-    page = browser.new_page()
+-
+-    # Navigate to the app
+-    print("🚀 Navigating to app...")
+-    page.goto("http://localhost:8080")
+-
+-    # 1. Verify Edit Button Exists
+-    print("🔍 Checking for Edit Button...")
+-    edit_btn = page.locator(".edit-btn").first
+-    expect(edit_btn).to_be_visible()
+-    edit_btn.click()
+-
+-    # 2. Verify Edit Modal
+-    print("📝 Verifying Edit Modal...")
+-    modal = page.locator("#edit-modal")
+-    expect(modal).to_be_visible()
+-
+-    # Take screenshot of Edit Modal
+-    page.screenshot(path="verification/step1_edit_modal.png")
+-
+-    # Edit text
+-    page.fill("#edit-concept", "Playwright Concept")
+-    page.click("#btn-save-edit")
+-
+-    # Verify update
+-    expect(modal).to_be_hidden()
+-    expect(page.locator(".loci-label").first).to_have_text("Playwright Concept")
+-    print("✅ Item Edited Successfully.")
+-
+-    page.screenshot(path="verification/step2_edited_item.png")
+-
+-    # 3. Verify Ritual Mode
+-    print("🕯️ Testing Ritual Mode...")
+-    # First, we need to ensure items are "due".
+-    # By default, fresh items (seeded in state_manager) have lastReviewed: 0 and dueDate: 0 (or undefined -> 0).
+-    # Since Date.now() > 0, they should be dusty.
+-
+-    page.click("#btn-ritual")
+-
+-    # Overlay should appear
+-    overlay = page.locator("#ritual-overlay")
+-    expect(overlay).to_be_visible()
+-
+-    # Check Front of Card
+-    expect(page.locator(".ritual-prompt")).to_be_visible()
+-    page.screenshot(path="verification/step3_ritual_front.png")
+-    page.click("#ritual-reveal")
+-
+-    # Check Back of Card (Grading Buttons)
+-    expect(page.locator(".g-good")).to_be_visible()
+-    page.screenshot(path="verification/step4_ritual_back.png")
+-    page.click(".g-good") # Mark as Good
+-
+-    # Check Progress (Should move to next or finish)
+-    # Since we have 3 items, it should show next item.
+-    expect(page.locator("#ritual-step")).to_contain_text("2")
+-    print("✅ Ritual Mode Flow verified.")
+-
+-    # Close Ritual
+-    page.click("#ritual-close")
+-    expect(overlay).to_be_hidden()
+-
+-    # 4. Verify AI Settings
+-    print("🤖 Verifying AI Settings...")
+-    page.click("#btn-settings")
+-    page.click("button[data-tab='ai']")
+-    expect(page.locator("#set-gemini-key")).to_be_visible()
+-    print("✅ AI Settings Tab verified.")
+-    page.screenshot(path="verification/step5_ai_settings.png")
+-
+-    browser.close()
+-
+-with sync_playwright() as playwright:
+-    run(playwright)
+-
+-
