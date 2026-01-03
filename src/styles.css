@@ -1,6 +1,31 @@
 /* src/styles.css */
 
+:root {
+    /* Default Theme (Dark) */
+    --bg-main: #121212;
+    --bg-card: #1e1e1e;
+    --bg-element: #2a2a2a;
+    --bg-input: #333;
+    --bg-modal-overlay: rgba(0,0,0,0.8);
+    --border-main: #333;
+    --border-highlight: #444;
+    --border-input: #555;
+    --text-main: #e0e0e0;
+    --text-header: #bb86fc;
+    --text-hint: #888;
+    --accent-color: #03dac6;
+    --error-color: #cf6679;
+    --btn-text: #000;
+}
+
 /* --- Base Layout --- */
+body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Courier New', monospace;
+    padding: 20px;
+}
+
 .room-view {
     padding: 20px;
     display: flex;
@@ -14,8 +39,8 @@
     display: inline-block;
     margin: 10px;
     padding: 10px;
-    background: #2a2a2a;
-    border: 1px solid #444;
+    background: var(--bg-element);
+    border: 1px solid var(--border-highlight);
     border-radius: 5px;
     text-align: center;
     width: 180px;
@@ -36,7 +61,7 @@
 .loci-label {
     margin-top: 10px;
     font-weight: bold;
-    color: #bb86fc;
+    color: var(--text-header);
     min-height: 20px;
 }
 
@@ -105,71 +130,69 @@ body[data-dual-coding="always"] .loci-item .loci-label {
 /* --- Settings Modal --- */
 .modal {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.8);
+    background: var(--bg-modal-overlay);
     display: flex; justify-content: center; align-items: center;
     z-index: 1000;
     backdrop-filter: blur(5px);
 }
 .modal.hidden { display: none; }
 .modal-content {
-    background: #1e1e1e; padding: 25px; border-radius: 12px; width: 500px;
-    border: 1px solid #333;
+    background: var(--bg-card); padding: 25px; border-radius: 12px; width: 500px;
+    border: 1px solid var(--border-main);
     box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    color: #e0e0e0;
+    color: var(--text-main);
 }
 .modal-header {
     display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
 }
-.modal-header h2 { margin: 0; color: #bb86fc; font-size: 1.5em; }
+.modal-header h2 { margin: 0; color: var(--text-header); font-size: 1.5em; }
 .close-btn {
     background: none; border: none; color: #aaa; font-size: 1.5em; cursor: pointer;
 }
 .close-btn:hover { color: #fff; }
 
-.tabs { display: flex; border-bottom: 1px solid #333; margin-bottom: 20px; }
+.tabs { display: flex; border-bottom: 1px solid var(--border-main); margin-bottom: 20px; }
 .tab {
-    background: none; border: none; color: #888; padding: 10px 20px; cursor: pointer;
+    background: none; border: none; color: var(--text-hint); padding: 10px 20px; cursor: pointer;
     font-family: inherit; font-size: 1em;
 }
 .tab:hover { color: #ccc; }
-.tab.active { color: #03dac6; border-bottom: 2px solid #03dac6; }
+.tab.active { color: var(--accent-color); border-bottom: 2px solid var(--accent-color); }
 
 .tab-content { display: none; animation: fadeIn 0.3s; }
 .tab-content.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .setting-group { margin-bottom: 20px; }
-.setting-group label { display: block; margin-bottom: 8px; color: #03dac6; font-weight: bold; }
-.setting-group select {
-    width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px;
+.setting-group label { display: block; margin-bottom: 8px; color: var(--accent-color); font-weight: bold; }
+.setting-group select, .setting-group input {
+    width: 100%; padding: 10px; background: var(--bg-element); border: 1px solid var(--border-highlight); color: var(--text-main); border-radius: 4px;
 }
-.hint { font-size: 0.85em; color: #888; margin-top: 5px; font-style: italic; }
+.hint { font-size: 0.85em; color: var(--text-hint); margin-top: 5px; font-style: italic; }
 
 .toggle-switch { display: flex; gap: 10px; }
 .toggle-switch button {
-    flex: 1; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 4px;
+    flex: 1; padding: 10px; background: var(--bg-element); border: 1px solid var(--border-highlight); color: var(--text-hint); cursor: pointer; border-radius: 4px;
 }
-.toggle-switch button.active { /* Note: This class needs to be managed by JS */
+/* This needs to be managed by JS or specific selectors */
+/* .toggle-switch button.active {
     background: #3700b3; color: #fff; border-color: #3700b3;
-}
-/* Just for now, we rely on the click handlers in the spec which called updateSetting directly.
-   Ideally we'd style the active state based on the current setting. */
+} */
 
-/* --- Extracted from index.html --- */
-body { background-color: #121212; color: #e0e0e0; font-family: 'Courier New', monospace; padding: 20px; }
+/* --- Extracted from index.html (General) --- */
 .container { max-width: 900px; margin: 0 auto; text-align: center; }
-h1 { font-size: 3em; color: #bb86fc; }
-.btn { background: #03dac6; color: #000; padding: 10px 20px; border: none; cursor: pointer; font-weight: bold; margin: 10px; }
+h1 { font-size: 3em; color: var(--text-header); }
+.btn { background: var(--accent-color); color: var(--btn-text); padding: 10px 20px; border: none; cursor: pointer; font-weight: bold; margin: 10px; }
 .grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 40px; }
-.card { border: 1px solid #333; padding: 20px; border-radius: 8px; background: #1e1e1e; }
-#prompt-output { margin-top: 20px; font-style: italic; color: #cf6679; }
+.card { border: 1px solid var(--border-main); padding: 20px; border-radius: 8px; background: var(--bg-card); }
+#prompt-output { margin-top: 20px; font-style: italic; color: var(--error-color); }
 
 /* Quiz Modal Styles */
 #quiz-modal .modal-content {
-    border: 2px solid #cf6679;
+    border: 2px solid var(--error-color);
 }
 #quiz-modal h2 {
-    color: #cf6679;
+    color: var(--error-color);
 }
 .quiz-options {
     display: flex;
@@ -178,28 +201,28 @@ h1 { font-size: 3em; color: #bb86fc; }
     margin-top: 20px;
 }
 .quiz-option-btn {
-    background: #333;
-    color: #fff;
+    background: var(--bg-input);
+    color: var(--text-main);
     padding: 10px;
-    border: 1px solid #555;
+    border: 1px solid var(--border-input);
     cursor: pointer;
     text-align: left;
 }
 .quiz-option-btn:hover {
-    background: #444;
+    background: var(--border-highlight);
 }
 #quiz-input {
     width: 100%;
     padding: 10px;
     margin-top: 15px;
-    background: #333;
-    border: 1px solid #555;
-    color: #fff;
+    background: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-main);
 }
 #quiz-feedback {
     margin-top: 15px;
     font-weight: bold;
     min-height: 20px;
 }
-.feedback-success { color: #03dac6; }
-.feedback-failure { color: #cf6679; }
+.feedback-success { color: var(--accent-color); }
+.feedback-failure { color: var(--error-color); }

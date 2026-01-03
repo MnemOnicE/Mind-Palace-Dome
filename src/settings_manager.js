@@ -27,6 +27,73 @@ const DEFAULT_SETTINGS = {
     }
 };
 
+const THEMES = {
+    dark: {
+        '--bg-main': '#121212',
+        '--bg-card': '#1e1e1e',
+        '--bg-element': '#2a2a2a',
+        '--bg-input': '#333',
+        '--bg-modal-overlay': 'rgba(0,0,0,0.8)',
+        '--border-main': '#333',
+        '--border-highlight': '#444',
+        '--border-input': '#555',
+        '--text-main': '#e0e0e0',
+        '--text-header': '#bb86fc',
+        '--text-hint': '#888',
+        '--accent-color': '#03dac6',
+        '--error-color': '#cf6679',
+        '--btn-text': '#000'
+    },
+    light: {
+        '--bg-main': '#f5f5f5',
+        '--bg-card': '#ffffff',
+        '--bg-element': '#e0e0e0',
+        '--bg-input': '#f0f0f0',
+        '--bg-modal-overlay': 'rgba(0,0,0,0.5)',
+        '--border-main': '#ddd',
+        '--border-highlight': '#ccc',
+        '--border-input': '#bbb',
+        '--text-main': '#121212',
+        '--text-header': '#6200ee',
+        '--text-hint': '#666',
+        '--accent-color': '#03dac6',
+        '--error-color': '#b00020',
+        '--btn-text': '#000'
+    },
+    matrix: {
+        '--bg-main': '#000000',
+        '--bg-card': '#0d0d0d',
+        '--bg-element': '#001a00',
+        '--bg-input': '#003300',
+        '--bg-modal-overlay': 'rgba(0,50,0,0.9)',
+        '--border-main': '#003300',
+        '--border-highlight': '#004400',
+        '--border-input': '#005500',
+        '--text-main': '#00ff00',
+        '--text-header': '#00cc00',
+        '--text-hint': '#008800',
+        '--accent-color': '#00ff00',
+        '--error-color': '#ff0000',
+        '--btn-text': '#000'
+    },
+    cyberpunk: {
+        '--bg-main': '#0d0221',
+        '--bg-card': '#261447',
+        '--bg-element': '#2e003e',
+        '--bg-input': '#5a189a',
+        '--bg-modal-overlay': 'rgba(20,0,40,0.9)',
+        '--border-main': '#ff006e',
+        '--border-highlight': '#8338ec',
+        '--border-input': '#3a0ca3',
+        '--text-main': '#ffbe0b',
+        '--text-header': '#fb5607',
+        '--text-hint': '#ff006e',
+        '--accent-color': '#3a86ff',
+        '--error-color': '#ff0000',
+        '--btn-text': '#fff'
+    }
+};
+
 class SettingsManager {
     constructor() {
         this.settings = this.loadSettings();
@@ -58,7 +125,13 @@ class SettingsManager {
         const root = document.documentElement;
         const v = this.settings.visuals;
 
-        // 1. Apply Decay Styles via CSS Variables
+        // 1. Apply Theme
+        const theme = THEMES[v.theme] || THEMES['dark'];
+        Object.entries(theme).forEach(([key, value]) => {
+            root.style.setProperty(key, value);
+        });
+
+        // 2. Apply Decay Styles via CSS Variables
         if (v.decayStyle === 'filter' || v.decayStyle === 'both') {
             root.style.setProperty('--decay-filter', '0.4');
             root.style.setProperty('--decay-blur', '1px');
@@ -73,7 +146,7 @@ class SettingsManager {
             root.style.setProperty('--decay-texture-opacity', '0');
         }
 
-        // 2. Dual Coding Mode
+        // 3. Dual Coding Mode
         if (document.body) {
             document.body.dataset.dualCoding = v.dualCoding; // Used by CSS to toggle visibility
         }

@@ -472,6 +472,7 @@ function syncSettingsUI() {
     const ai = settingsManager.settings.ai;
     const au = settingsManager.settings.audio;
 
+    setVal('set-theme', v.theme);
     setVal('set-decay-style', v.decayStyle);
     setVal('set-gk-mode', g.mode);
     setVal('set-gemini-key', ai.geminiKey || '');
