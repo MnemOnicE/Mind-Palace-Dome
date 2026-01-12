@@ -11,10 +11,12 @@ let activeGatekeeper = null;
 let currentTargetItem = null;
 let currentRoomId = 'foyer';
 let audioEngine = new AudioEngine();
+let currentLociIndex = 0;
+let tourInterval = null;
 
 function init() {
     refreshRoomList(); // Populate dropdown
-    renderRoom(currentRoomId);
+    renderCarousel(currentRoomId);
     setupEventListeners();
     syncSettingsUI();
 
@@ -23,7 +25,7 @@ function init() {
     audioEngine.setConfig({ openAIKey: au.openAIKey });
 
     // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
-    setInterval(() => renderRoom(currentRoomId), 5000);
+    setInterval(() => renderCarousel(currentRoomId), 5000);
 }
 
 function refreshRoomList() {
@@ -42,7 +44,7 @@ function refreshRoomList() {
     });
 }
 
-function renderRoom(roomId) {
+function renderCarousel(roomId) {
     const roomContainer = document.getElementById('room-view');
     const title = document.getElementById('current-room-name');
 
@@ -55,65 +57,193 @@ function renderRoom(roomId) {
     }
 
     if (title) title.innerText = `Current Room: ${room.name}`;
+
+    // Ensure index range
+    if (!room.items || room.items.length === 0) {
+        currentLociIndex = 0;
+    } else if (currentLociIndex >= room.items.length) {
+        currentLociIndex = 0;
+    }
+
+    // Optimization: Re-use container if it exists and matches current room
+    const existingContainer = roomContainer.querySelector('.carousel-container');
+    if (existingContainer && roomContainer.dataset.renderedRoom === roomId) {
+        updateCarouselUI(room, existingContainer);
+        return;
+    }
+
+    // Full Render
     roomContainer.innerHTML = '';
+    roomContainer.dataset.renderedRoom = roomId;
+    roomContainer.classList.add('carousel-view');
 
-    room.items.forEach(item => {
-        const itemCard = document.createElement('div');
+    const container = document.createElement('div');
+    container.className = 'carousel-container';
 
-        // Calculate Dust (SRS Logic)
-        const now = Date.now();
-        // If dueDate is missing (old items), default to 0 (dusty immediately)
-        const dueDate = item.dueDate || 0;
-        const isDusty = now >= dueDate;
+    if (room.items.length === 0) {
+        container.innerHTML = '<p class="empty-msg">This room is empty. Add a memory.</p>';
+        roomContainer.appendChild(container);
+        return;
+    }
 
-        itemCard.className = `loci-item room-card ${isDusty ? 'dusty' : ''}`;
-        itemCard.dataset.id = item.id;
+    room.items.forEach((item, index) => {
+        const itemEl = document.createElement('div');
+        // Initial state set by updateCarouselUI mostly, but we set basics here
+        itemEl.className = 'carousel-item';
+        itemEl.dataset.id = item.id;
+        itemEl.dataset.index = index;
 
+        // Image
         const image = document.createElement('img');
         image.src = item.visualURL;
         image.alt = item.visual;
+        itemEl.appendChild(image);
 
+        // Label
         const label = document.createElement('div');
         label.className = 'loci-label';
         label.innerText = item.concept;
+        itemEl.appendChild(label);
 
-        // Add streak indicator
+        // Streak
         if (item.streak > 0) {
             const streakBadge = document.createElement('span');
+            streakBadge.className = 'streak-badge';
             streakBadge.innerText = `🔥${item.streak}`;
-            streakBadge.style.cssText = 'position:absolute; top:5px; right:5px; background:rgba(0,0,0,0.7); padding:2px 5px; border-radius:10px; font-size:0.8em;';
-            itemCard.appendChild(streakBadge);
+            itemEl.appendChild(streakBadge);
         }
 
-        // EVENT: Mouseover triggers "Reveal" if in Recall Mode (Dual Coding)
-        itemCard.addEventListener('mouseenter', () => {
-            if (document.body.dataset.dualCoding === 'hover') {
+        // Dual Coding Hover
+        itemEl.addEventListener('mouseenter', () => {
+            if (document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
                 label.classList.add('revealed');
             }
         });
+        itemEl.addEventListener('mouseleave', () => label.classList.remove('revealed'));
 
-        itemCard.addEventListener('mouseleave', () => {
-             label.classList.remove('revealed');
+        // Interaction
+        itemEl.addEventListener('click', () => {
+            if (itemEl.classList.contains('active')) {
+                handleCardClick(item, itemEl);
+            } else {
+                // Click on prev/next to navigate
+                currentLociIndex = index;
+                renderCarousel(currentRoomId);
+            }
         });
 
-        // Click triggers cleaning or quiz
-        itemCard.addEventListener('click', () => handleCardClick(item, itemCard));
-
-        // Add Edit Button
+        // Edit Button (Only visible on active?)
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.innerText = '✏️';
         editBtn.title = 'Edit Item';
         editBtn.onclick = (e) => {
-            e.stopPropagation(); // Prevent card click
+            e.stopPropagation();
             openEditModal(item);
         };
-        itemCard.appendChild(editBtn);
+        itemEl.appendChild(editBtn);
 
-        itemCard.appendChild(image);
-        itemCard.appendChild(label);
-        roomContainer.appendChild(itemCard);
+        container.appendChild(itemEl);
     });
+
+    roomContainer.appendChild(container);
+
+    // Controls
+    const controls = document.createElement('div');
+    controls.className = 'carousel-controls';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'nav-btn prev';
+    prevBtn.innerText = '◀';
+    prevBtn.onclick = prevLoci;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'nav-btn next';
+    nextBtn.innerText = '▶';
+    nextBtn.onclick = nextLoci;
+
+    const tourBtn = document.createElement('button');
+    tourBtn.id = 'btn-tour';
+    tourBtn.className = 'nav-btn tour';
+    tourBtn.innerText = tourInterval ? '⏸️' : '▶️ Tour';
+    tourBtn.onclick = toggleTour;
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(tourBtn);
+    controls.appendChild(nextBtn);
+    roomContainer.appendChild(controls);
+
+    // Initial update to set classes
+    updateCarouselUI(room, container);
+}
+
+function updateCarouselUI(room, container) {
+    const items = container.querySelectorAll('.carousel-item');
+    if (items.length !== room.items.length) {
+        // Mismatch (added/removed item), force re-render
+        container.parentNode.innerHTML = ''; // Clear to trigger rebuild next time
+        renderCarousel(room.id);
+        return;
+    }
+
+    const now = Date.now();
+
+    items.forEach((el, index) => {
+        let stateClass = 'carousel-item';
+        if (index === currentLociIndex) stateClass += ' active';
+        else if (index === (currentLociIndex - 1 + room.items.length) % room.items.length) stateClass += ' prev';
+        else if (index === (currentLociIndex + 1) % room.items.length) stateClass += ' next';
+        else stateClass += ' hidden-item';
+
+        const item = room.items[index];
+        const dueDate = item.dueDate || 0;
+        const isDusty = now >= dueDate;
+
+        el.className = `${stateClass} ${isDusty ? 'dusty' : ''}`;
+    });
+
+    // Update Tour Button Text
+    const tourBtn = document.getElementById('btn-tour');
+    if (tourBtn) tourBtn.innerText = tourInterval ? '⏸️' : '▶️ Tour';
+}
+
+function startTour() {
+    if (tourInterval) return;
+    const room = stateManager.getRoom(currentRoomId);
+    if (!room || room.items.length < 2) return;
+
+    tourInterval = setInterval(() => {
+        nextLoci();
+    }, 3000);
+
+    renderCarousel(currentRoomId);
+}
+
+function stopTour() {
+    if (tourInterval) {
+        clearInterval(tourInterval);
+        tourInterval = null;
+    }
+    renderCarousel(currentRoomId);
+}
+
+function toggleTour() {
+    if (tourInterval) stopTour();
+    else startTour();
+}
+
+function nextLoci() {
+    const room = stateManager.getRoom(currentRoomId);
+    if (!room || room.items.length === 0) return;
+    currentLociIndex = (currentLociIndex + 1) % room.items.length;
+    renderCarousel(currentRoomId);
+}
+
+function prevLoci() {
+    const room = stateManager.getRoom(currentRoomId);
+    if (!room || room.items.length === 0) return;
+    currentLociIndex = (currentLociIndex - 1 + room.items.length) % room.items.length;
+    renderCarousel(currentRoomId);
 }
 
 function openEditModal(item = null) {
@@ -202,7 +332,7 @@ function openEditModal(item = null) {
         }
 
         modal.classList.add('hidden');
-        renderRoom(currentRoomId);
+        renderCarousel(currentRoomId);
     };
 
     modal.classList.remove('hidden');
@@ -316,7 +446,7 @@ function handleQuizAttempt(answer) {
         stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, true);
 
         // Re-render to update badges/state immediately
-        renderRoom(currentRoomId);
+        renderCarousel(currentRoomId);
 
         // Close modal after delay
         setTimeout(() => {
@@ -328,7 +458,7 @@ function handleQuizAttempt(answer) {
 
         // Persist Failure (Streak reset)
         stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, false);
-        renderRoom(currentRoomId);
+        renderCarousel(currentRoomId);
     }
 }
 
@@ -344,7 +474,8 @@ function setupEventListeners() {
     if (roomSelect) {
         roomSelect.addEventListener('change', (e) => {
             currentRoomId = e.target.value;
-            renderRoom(currentRoomId);
+            currentLociIndex = 0;
+            renderCarousel(currentRoomId);
         });
     }
 
@@ -357,7 +488,8 @@ function setupEventListeners() {
                 if (newRoom) {
                     refreshRoomList();
                     currentRoomId = newRoom.id;
-                    renderRoom(currentRoomId);
+                    currentLociIndex = 0;
+                    renderCarousel(currentRoomId);
                 } else {
                     alert("Room already exists or invalid name.");
                 }
@@ -380,11 +512,26 @@ function setupEventListeners() {
 
     // Custom Event Listener for Ritual Completion (Refresh UI)
     document.addEventListener('dome:refresh', () => {
-        renderRoom(currentRoomId);
+        renderCarousel(currentRoomId);
     });
 
     document.getElementById('close-quiz').addEventListener('click', () => {
         document.getElementById('quiz-modal').classList.add('hidden');
+    });
+
+    // Keyboard Navigation
+    document.addEventListener('keydown', (e) => {
+        // Only navigate if no modal is open (simple check)
+        if (!document.querySelector('.modal:not(.hidden)')) {
+            if (e.key === 'ArrowRight') {
+                stopTour();
+                nextLoci();
+            }
+            if (e.key === 'ArrowLeft') {
+                stopTour();
+                prevLoci();
+            }
+        }
     });
 
     // Generate Button
