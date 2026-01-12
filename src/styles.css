@@ -44,129 +44,224 @@ body {
     background-attachment: fixed;
     color: var(--text-main);
     font-family: var(--font-main);
-    padding: 40px 20px;
+    padding: 20px; /* Reduced padding for cleaner look */
     margin: 0;
     line-height: 1.6;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
-.room-view {
-    padding: 20px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    justify-content: center;
-}
-
-/* --- Loci Items (Cards) --- */
-.loci-item {
+/* --- CAROUSEL VIEW (New Minimalist Layout) --- */
+.carousel-view {
+    position: relative;
+    width: 100%;
+    min-height: 500px;
     display: flex;
     flex-direction: column;
-    margin: 10px;
-    padding: 12px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    perspective: 1000px; /* For 3D feel */
+}
+
+.carousel-container {
+    position: relative;
+    width: 100%;
+    height: 450px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* --- Carousel Items --- */
+.carousel-item {
+    position: absolute;
+    width: 300px;
+    height: 400px;
     background: var(--bg-element);
     border: 1px solid var(--border-main);
-    border-radius: var(--radius-md);
-    text-align: center;
-    width: 200px;
-    vertical-align: top;
-    position: relative;
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-                box-shadow 0.3s ease,
-                border-color 0.3s ease;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    animation: fadeIn 0.5s ease backwards;
-}
-.loci-item:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.3);
-    border-color: var(--accent-color);
-    background: var(--bg-element-hover);
-    z-index: 10;
-}
-.loci-item img {
-    width: 100%;
-    height: 140px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    background: #000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    transition: filter 0.3s ease;
-}
-.loci-item:hover img {
-    filter: brightness(1.1);
-}
-.loci-label {
-    margin-top: 12px;
-    font-weight: 600;
-    color: var(--text-header);
-    min-height: 24px;
-    font-size: 0.95em;
-    letter-spacing: 0.02em;
-}
-
-/* --- Dual Coding Logic (The Toggle) --- */
-
-/* RECALL Mode (Hover to Reveal) */
-body[data-dual-coding="hover"] .loci-item .loci-label {
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    overflow: hidden;
     opacity: 0;
-    filter: blur(5px);
+    z-index: 0;
+    transform: scale(0.8) translateX(0);
+}
+
+/* ACTIVE STATE (Center Stage) */
+.carousel-item.active {
+    opacity: 1;
+    z-index: 10;
+    transform: scale(1.1) translateX(0);
+    border-color: var(--accent-color);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 20px var(--accent-glow);
+}
+
+/* PREVIOUS/NEXT PREVIEWS (Spatial Context) */
+.carousel-item.prev {
+    opacity: 0.4;
+    z-index: 5;
+    transform: scale(0.8) translateX(-120%);
+    filter: blur(2px) grayscale(50%);
+    cursor: pointer;
+}
+.carousel-item.next {
+    opacity: 0.4;
+    z-index: 5;
+    transform: scale(0.8) translateX(120%);
+    filter: blur(2px) grayscale(50%);
+    cursor: pointer;
+}
+.carousel-item.hidden-item {
+    display: none; /* Hide others to save rendering */
+}
+
+/* Hover effects for previews */
+.carousel-item.prev:hover, .carousel-item.next:hover {
+    opacity: 0.8;
+    filter: blur(0);
+    transform: scale(0.85) translateX(var(--tx, 0));
+}
+.carousel-item.prev:hover { --tx: -120%; }
+.carousel-item.next:hover { --tx: 120%; }
+
+/* Image Styling */
+.carousel-item img {
+    width: 100%;
+    height: 70%;
+    object-fit: cover;
+    border-bottom: 1px solid var(--border-main);
+    mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+
+/* Content Styling */
+.loci-label {
+    padding: 20px;
+    font-size: 1.5em;
+    font-weight: 700;
+    color: var(--text-header);
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    opacity: 0; /* Hidden by default for dual coding */
+    transform: translateY(10px);
     transition: all 0.3s ease;
 }
-body[data-dual-coding="hover"] .loci-item:hover .loci-label {
+
+/* Always show label on active if not dual coding strict, or on hover */
+.carousel-item:hover .loci-label,
+.carousel-item.active:hover .loci-label,
+body[data-dual-coding="always"] .loci-label,
+.loci-label.revealed {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(-2px);
-}
-body[data-dual-coding="hover"] .loci-item:hover .loci-label.revealed {
-    /* For manual reveal triggers if any */
-    opacity: 1;
-    filter: blur(0);
+    transform: translateY(0);
 }
 
-/* STUDY Mode (Always Visible) */
-body[data-dual-coding="always"] .loci-item .loci-label {
-    opacity: 1;
-    filter: blur(0);
+/* Streak Badge */
+.streak-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(0,0,0,0.8);
+    color: #ff9f43;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9em;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 159, 67, 0.3);
 }
 
-/* --- Dust & Decay (The Gatekeeper Hint) --- */
-
-.room-card {
-    position: relative;
-    transition: filter 0.5s ease;
-    overflow: hidden;
+/* Edit Button (Floating) */
+.edit-btn {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex; justify-content: center; align-items: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
 }
+.carousel-item:hover .edit-btn { opacity: 1; }
+.edit-btn:hover { background: var(--accent-color); color: #000; }
 
-/* 🕸️ THE DUST STATE */
-.room-card.dusty {
-    /* Filter Effect (Sepia + slight Blur for "fog of memory") */
-    /* Controlled by variable --decay-filter-strength */
-    filter: sepia(var(--decay-filter, 0.4)) blur(var(--decay-blur, 1px));
+
+/* --- Dust/Decay Effects (Adapted for Carousel) --- */
+.carousel-item.dusty {
+    filter: sepia(0.3);
 }
-
-/* 🕸️ THE COBWEB OVERLAY */
-.room-card.dusty::after {
+.carousel-item.dusty::after {
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-
     background-image: url('../assets/cobweb_overlay.svg');
     background-size: cover;
-    opacity: var(--decay-texture-opacity, 0.3);
-    mix-blend-mode: overlay; /* Adjusted for better visibility on dark */
-    transition: opacity 0.5s ease;
+    opacity: 0.4;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+}
+.carousel-item.active.dusty:hover {
+    filter: none;
+}
+.carousel-item.active.dusty:hover::after {
+    opacity: 0;
+    transition: opacity 0.5s;
 }
 
-/* 🖱️ CLEANING RITUAL (Hover) */
-.room-card.dusty:hover {
-    filter: sepia(0) blur(0);
+/* --- Navigation Controls --- */
+.carousel-controls {
+    display: flex;
+    gap: 20px;
+    z-index: 20;
+    margin-top: 10px;
 }
-.room-card.dusty:hover::after {
-    opacity: 0.1;
+
+.nav-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border-main);
+    color: var(--text-main);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 1.2em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(5px);
+    display: flex; justify-content: center; align-items: center;
 }
+.nav-btn:hover {
+    background: var(--accent-color);
+    color: var(--btn-text);
+    transform: scale(1.1);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.nav-btn.tour {
+    width: auto;
+    padding: 0 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 0.9em;
+}
+
+.empty-msg {
+    font-size: 1.5em;
+    color: var(--text-hint);
+    font-style: italic;
+}
+
 
 /* --- Settings Modal --- */
 .modal {
