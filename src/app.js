@@ -272,9 +272,9 @@ function openEditModal(item = null) {
                         <label>Image URL (or Paste Base64)</label>
                         <input type="text" id="edit-url" style="width:100%; padding:8px;" placeholder="https://...">
                     </div>
-                     <div class="setting-group">
-                        <label>Upload Image</label>
-                        <input type="file" id="edit-file-upload" accept="image/*">
+                     <div class="setting-group" style="background: var(--bg-element); padding: 10px; border-radius: var(--radius-sm); text-align: center;">
+                        <label style="margin-bottom: 5px;">Or Upload Image</label>
+                        <input type="file" id="edit-file-upload" accept="image/*" style="width: 100%;">
                     </div>
 
                     <div class="setting-group" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
@@ -442,6 +442,12 @@ function handleQuizAttempt(answer) {
         // Success Action: Clean the dust!
         currentTargetItem.element.classList.remove('dusty');
 
+        // Add Pop Animation
+        const feedbackEl = document.getElementById('quiz-feedback');
+        feedbackEl.classList.remove('pop-animation');
+        void feedbackEl.offsetWidth; // Trigger reflow
+        feedbackEl.classList.add('pop-animation');
+
         // Persist Success
         stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, true);
 
@@ -594,6 +600,12 @@ function setupEventListeners() {
             const key = e.target.dataset.key;
             const val = e.target.dataset.value;
             settingsManager.update(cat, key, val);
+
+            // Update UI Active State
+            document.querySelectorAll(`.setting-toggle[data-category="${cat}"][data-key="${key}"]`).forEach(b => {
+                b.classList.remove('active');
+            });
+            btn.classList.add('active');
         });
     });
 }
@@ -614,6 +626,15 @@ function showTab(tabName) {
 
 function syncSettingsUI() {
     // Set initial values in inputs based on SettingsManager
+    const updateToggleClasses = (cat, key, val) => {
+        document.querySelectorAll(`.setting-toggle[data-category="${cat}"][data-key="${key}"]`).forEach(btn => {
+            if (btn.dataset.value === val) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    };
     const v = settingsManager.settings.visuals;
     const g = settingsManager.settings.gatekeeper;
     const ai = settingsManager.settings.ai;
@@ -626,6 +647,7 @@ function syncSettingsUI() {
     setVal('set-openai-key', au.openAIKey || '');
     setVal('set-recording-mode', au.recordingMode);
     setVal('set-tts-engine', au.engine);
+    updateToggleClasses('visuals', 'dualCoding', v.dualCoding);
 }
 
 function setVal(id, val) {

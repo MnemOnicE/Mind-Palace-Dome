@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
 const THEMES = {
     dark: {
         '--bg-main': '#121212',
+        '--bg-gradient': 'radial-gradient(circle at top right, #1a1a2e, #0a0a0c)',
         '--bg-card': '#1e1e1e',
         '--bg-element': '#2a2a2a',
         '--bg-input': '#333',
@@ -46,6 +47,7 @@ const THEMES = {
     },
     light: {
         '--bg-main': '#f5f5f5',
+        '--bg-gradient': 'radial-gradient(circle at top right, #ffffff, #e0e0e0)',
         '--bg-card': '#ffffff',
         '--bg-element': '#e0e0e0',
         '--bg-input': '#f0f0f0',
@@ -62,6 +64,7 @@ const THEMES = {
     },
     matrix: {
         '--bg-main': '#000000',
+        '--bg-gradient': 'linear-gradient(to bottom, #001100, #000000)',
         '--bg-card': '#0d0d0d',
         '--bg-element': '#001a00',
         '--bg-input': '#003300',
@@ -78,6 +81,7 @@ const THEMES = {
     },
     cyberpunk: {
         '--bg-main': '#0d0221',
+        '--bg-gradient': 'linear-gradient(45deg, #0d0221, #261447)',
         '--bg-card': '#261447',
         '--bg-element': '#2e003e',
         '--bg-input': '#5a189a',
