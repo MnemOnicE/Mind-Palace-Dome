@@ -167,14 +167,14 @@ body[data-dual-coding="always"] .loci-label,
     position: absolute;
     top: 15px;
     right: 15px;
-    background: rgba(0,0,0,0.8);
-    color: #ff9f43;
+    background: var(--bg-modal-overlay);
+    color: var(--accent-color);
     padding: 5px 12px;
     border-radius: 20px;
     font-weight: bold;
     font-size: 0.9em;
     backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 159, 67, 0.3);
+    border: 1px solid var(--accent-glow);
 }
 
 /* Edit Button (Floating) */
@@ -351,7 +351,12 @@ body[data-dual-coding="always"] .loci-label,
     transition: all 0.2s;
 }
 .toggle-switch button:hover { color: var(--text-main); }
-/* Note: Active state logic for toggles should be visualised via JS adding a class, or by default just text style */
+/* Active state logic for toggles */
+.toggle-switch button.active {
+    background: var(--accent-color);
+    color: var(--btn-text);
+    font-weight: 600;
+}
 
 /* --- Extracted from index.html (General) --- */
 .container {
@@ -482,3 +487,46 @@ h2, h3 {
 }
 .feedback-success { color: var(--accent-color); }
 .feedback-failure { color: var(--error-color); }
+
+/* --- Sticky Menu --- */
+.menu {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 10px 20px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.room-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 var(--accent-glow); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0,0,0,0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+}
+@keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+#btn-add-item:hover {
+    animation: pulse 1s infinite;
+    transform: translateY(-2px);
+}
+.pop-animation {
+    animation: pop 0.3s ease-out;
+}
