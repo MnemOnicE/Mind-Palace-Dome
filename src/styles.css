@@ -525,7 +525,6 @@ h2, h3 {
 }
 #btn-add-item:hover {
     animation: pulse 1s infinite;
-    transform: translateY(-2px);
 }
 .pop-animation {
     animation: pop 0.3s ease-out;

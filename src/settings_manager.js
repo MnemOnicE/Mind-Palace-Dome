@@ -42,6 +42,7 @@ const THEMES = {
         '--text-header': '#bb86fc',
         '--text-hint': '#888',
         '--accent-color': '#03dac6',
+        '--accent-glow': 'rgba(3, 218, 198, 0.2)',
         '--error-color': '#cf6679',
         '--btn-text': '#000'
     },
@@ -59,6 +60,7 @@ const THEMES = {
         '--text-header': '#6200ee',
         '--text-hint': '#666',
         '--accent-color': '#03dac6',
+        '--accent-glow': 'rgba(3, 218, 198, 0.2)',
         '--error-color': '#b00020',
         '--btn-text': '#000'
     },
@@ -76,6 +78,7 @@ const THEMES = {
         '--text-header': '#00cc00',
         '--text-hint': '#008800',
         '--accent-color': '#00ff00',
+        '--accent-glow': 'rgba(0, 255, 0, 0.2)',
         '--error-color': '#ff0000',
         '--btn-text': '#000'
     },
@@ -93,6 +96,7 @@ const THEMES = {
         '--text-header': '#fb5607',
         '--text-hint': '#ff006e',
         '--accent-color': '#3a86ff',
+        '--accent-glow': 'rgba(58, 134, 255, 0.2)',
         '--error-color': '#ff0000',
         '--btn-text': '#fff'
     }
