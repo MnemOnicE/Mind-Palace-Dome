@@ -272,9 +272,10 @@ function openEditModal(item = null) {
                         <label>Image URL (or Paste Base64)</label>
                         <input type="text" id="edit-url" style="width:100%; padding:8px;" placeholder="https://...">
                     </div>
-                     <div class="setting-group" style="background: var(--bg-element); padding: 10px; border-radius: var(--radius-sm); text-align: center;">
-                        <label style="margin-bottom: 5px;">Or Upload Image</label>
-                        <input type="file" id="edit-file-upload" accept="image/*" style="width: 100%;">
+                     <div class="setting-group upload-section">
+                        <label>Or Upload Image</label>
+                        <input type="file" id="edit-file-upload" accept="image/*">
+                    </div>
                     </div>
 
                     <div class="setting-group" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
