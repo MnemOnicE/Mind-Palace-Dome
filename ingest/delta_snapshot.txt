@@ -1,200 +1,497 @@
 --- Previous Snapshot
 +++ Current Snapshot
+@@ -248,7 +248,7 @@
+     <link rel="stylesheet" href="src/styles.css">
+ </head>
+ <body>
+-    <div class="container">
++    <div class="container" id="main-content" aria-hidden="false">
+         <h1>dome-icile</h1>
+         <p>Construct. Populate. Remember.</p>
+         
 @@ -257,8 +257,8 @@
                  <select id="room-select" class="dropdown"></select>
                  <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
              </div>
--            <button id="btn-settings" class="btn">⚙️ Settings</button>
--            <button id="btn-ritual" class="btn">Ritual Mode</button>
-+            <button id="btn-settings" class="btn small-btn">⚙️ Settings</button>
-+            <button id="btn-ritual" class="btn small-btn">🕯️ Ritual Mode</button>
+-            <button id="btn-settings" class="btn small-btn">⚙️ Settings</button>
+-            <button id="btn-ritual" class="btn small-btn">🕯️ Ritual Mode</button>
++            <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
++            <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
          </div>
  
          <!-- SETTINGS MODAL -->
-@@ -291,9 +291,9 @@
-                         <div class="setting-group">
-                             <label>Decay Visualization</label>
-                             <select id="set-decay-style" data-category="visuals" data-key="decayStyle">
--                                <option value="both">Subtle Combo (Filter + Texture)</option>
-+                                <option value="both">Subtle Combo (Filter + Dust/Webs Texture)</option>
-                                 <option value="filter">Filter Only (Sepia/Blur)</option>
--                                <option value="texture">Texture Only (Cobwebs)</option>
-+                                <option value="texture">Texture Only (Dust/Webs)</option>
-                                 <option value="none">Disabled</option>
-                             </select>
-                             <p class="hint">How "dusty" rooms appear when neglected.</p>
-@@ -1583,9 +1583,10 @@
-                         <label>Image URL (or Paste Base64)</label>
-                         <input type="text" id="edit-url" style="width:100%; padding:8px;" placeholder="https://...">
-                     </div>
--                     <div class="setting-group">
--                        <label>Upload Image</label>
-+                     <div class="setting-group upload-section">
-+                        <label>Or Upload Image</label>
-                         <input type="file" id="edit-file-upload" accept="image/*">
-+                    </div>
-                     </div>
+@@ -266,7 +266,7 @@
+             <div class="modal-content">
+                 <div class="modal-header">
+                     <h2>🧠 Neural Settings</h2>
+-                    <button class="close-btn" id="close-settings">×</button>
++                    <button class="close-btn" id="close-settings" aria-label="Close Settings Modal">×</button>
+                 </div>
  
-                     <div class="setting-group" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
-@@ -1753,6 +1754,12 @@
-         // Success Action: Clean the dust!
-         currentTargetItem.element.classList.remove('dusty');
+                 <div class="modal-body">
+@@ -357,7 +357,7 @@
+             <div class="modal-content">
+                 <div class="modal-header">
+                     <h2>🛡️ The Gatekeeper</h2>
+-                    <button class="close-btn" id="close-quiz">×</button>
++                    <button class="close-btn" id="close-quiz" aria-label="Close Quiz Modal">×</button>
+                 </div>
+                 <div class="modal-body">
+                     <p id="quiz-question">What resides here?</p>
+@@ -664,6 +664,13 @@
+ console.log('✅ Passed.');
  
-+        // Add Pop Animation
-+        const feedbackEl = document.getElementById('quiz-feedback');
-+        feedbackEl.classList.remove('pop-animation');
-+        void feedbackEl.offsetWidth; // Trigger reflow
-+        feedbackEl.classList.add('pop-animation');
+ console.log('🎉 All SRS Tests Passed!');
 +
-         // Persist Success
-         stateManager.updateItemStats(currentRoomId, currentTargetItem.item.id, true);
- 
-@@ -1905,6 +1912,12 @@
-             const key = e.target.dataset.key;
-             const val = e.target.dataset.value;
-             settingsManager.update(cat, key, val);
 +
-+            // Update UI Active State
-+            document.querySelectorAll(`.setting-toggle[data-category="${cat}"][data-key="${key}"]`).forEach(b => {
-+                b.classList.remove('active');
-+            });
-+            btn.classList.add('active');
-         });
-     });
++
++================================================================
++File: ./test_state.mjs
++================================================================
++// Quick check of the test to ensure tests pass
+ 
+ 
+ 
+@@ -1335,8 +1342,14 @@
+     const au = settingsManager.settings.audio;
+     audioEngine.setConfig({ openAIKey: au.openAIKey });
+ 
+-    // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
+-    setInterval(() => renderCarousel(currentRoomId), 5000);
++    // Auto-refresh room classes every 5 seconds to show dust accumulating (for demo)
++    setInterval(() => {
++        const room = stateManager.getRoom(currentRoomId);
++        const container = document.querySelector('.carousel-container');
++        if (room && container) {
++            updateCarouselUI(room, container);
++        }
++    }, 5000);
  }
-@@ -1925,6 +1938,15 @@
  
- function syncSettingsUI() {
-     // Set initial values in inputs based on SettingsManager
-+    const updateToggleClasses = (cat, key, val) => {
-+        document.querySelectorAll(`.setting-toggle[data-category="${cat}"][data-key="${key}"]`).forEach(btn => {
-+            if (btn.dataset.value === val) {
-+                btn.classList.add('active');
-+            } else {
-+                btn.classList.remove('active');
+ function refreshRoomList() {
+@@ -1397,10 +1410,64 @@
+         return;
+     }
+ 
++    // Event Delegation for clicks and keypress
++    container.addEventListener('click', handleContainerInteraction);
++    container.addEventListener('keydown', (e) => {
++        if (e.key === 'Enter' || e.key === ' ') {
++            e.preventDefault();
++            handleContainerInteraction(e);
++        }
++    });
++
++    function handleContainerInteraction(e) {
++        const itemEl = e.target.closest('.carousel-item');
++        if (!itemEl) return;
++
++        const index = parseInt(itemEl.dataset.index, 10);
++
++        // Handle Edit Button Click
++        const editBtn = e.target.closest('.edit-btn');
++        if (editBtn) {
++            e.stopPropagation();
++            const item = room.items[index];
++            openEditModal(item);
++            return;
++        }
++
++        // Handle Card Click
++        if (itemEl.classList.contains('active')) {
++            const item = room.items[index];
++            handleCardClick(item, itemEl);
++        } else {
++            currentLociIndex = index;
++            renderCarousel(currentRoomId);
++        }
++    }
++
++    // Event Delegation for hover (Dual Coding)
++    container.addEventListener('mouseover', (e) => {
++        const itemEl = e.target.closest('.carousel-item');
++        if (itemEl && document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
++            const label = itemEl.querySelector('.loci-label');
++            if (label) label.classList.add('revealed');
++        }
++    });
++
++    container.addEventListener('mouseout', (e) => {
++        const itemEl = e.target.closest('.carousel-item');
++        if (itemEl) {
++            const label = itemEl.querySelector('.loci-label');
++            if (label) label.classList.remove('revealed');
++        }
++    });
++
++    const fragment = document.createDocumentFragment();
++
+     room.items.forEach((item, index) => {
+         const itemEl = document.createElement('div');
+         // Initial state set by updateCarouselUI mostly, but we set basics here
+         itemEl.className = 'carousel-item';
++        itemEl.setAttribute('tabindex', '0');
+         itemEl.dataset.id = item.id;
+         itemEl.dataset.index = index;
+ 
+@@ -1424,39 +1491,19 @@
+             itemEl.appendChild(streakBadge);
+         }
+ 
+-        // Dual Coding Hover
+-        itemEl.addEventListener('mouseenter', () => {
+-            if (document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
+-                label.classList.add('revealed');
+-            }
+-        });
+-        itemEl.addEventListener('mouseleave', () => label.classList.remove('revealed'));
+-
+-        // Interaction
+-        itemEl.addEventListener('click', () => {
+-            if (itemEl.classList.contains('active')) {
+-                handleCardClick(item, itemEl);
+-            } else {
+-                // Click on prev/next to navigate
+-                currentLociIndex = index;
+-                renderCarousel(currentRoomId);
+-            }
+-        });
+-
+-        // Edit Button (Only visible on active?)
++        // Edit Button
+         const editBtn = document.createElement('button');
+         editBtn.className = 'edit-btn';
+         editBtn.innerText = '✏️';
+         editBtn.title = 'Edit Item';
+-        editBtn.onclick = (e) => {
+-            e.stopPropagation();
+-            openEditModal(item);
+-        };
++        editBtn.setAttribute('aria-label', 'Edit Item');
++        // Events are now handled via delegation
+         itemEl.appendChild(editBtn);
+ 
+-        container.appendChild(itemEl);
++        fragment.appendChild(itemEl);
+     });
+ 
++    container.appendChild(fragment);
+     roomContainer.appendChild(container);
+ 
+     // Controls
+@@ -1466,17 +1513,20 @@
+     const prevBtn = document.createElement('button');
+     prevBtn.className = 'nav-btn prev';
+     prevBtn.innerText = '◀';
++    prevBtn.setAttribute('aria-label', 'Previous Item');
+     prevBtn.onclick = prevLoci;
+ 
+     const nextBtn = document.createElement('button');
+     nextBtn.className = 'nav-btn next';
+     nextBtn.innerText = '▶';
++    nextBtn.setAttribute('aria-label', 'Next Item');
+     nextBtn.onclick = nextLoci;
+ 
+     const tourBtn = document.createElement('button');
+     tourBtn.id = 'btn-tour';
+     tourBtn.className = 'nav-btn tour';
+     tourBtn.innerText = tourInterval ? '⏸️' : '▶️ Tour';
++    tourBtn.setAttribute('aria-label', 'Toggle Tour Mode');
+     tourBtn.onclick = toggleTour;
+ 
+     controls.appendChild(prevBtn);
+@@ -1572,7 +1622,7 @@
+             <div class="modal-content">
+                 <div class="modal-header">
+                     <h2 id="modal-title"></h2>
+-                    <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
++                    <button class="close-btn" aria-label="Close Modal">×</button>
+                 </div>
+                 <div class="modal-body">
+                     <div class="setting-group">
+@@ -1599,6 +1649,62 @@
+             </div>
+         `;
+         document.body.appendChild(modal);
++
++        // Attach static event listeners ONCE
++        modal.querySelector('.close-btn').addEventListener('click', () => {
++            modal.classList.add('hidden');
++        toggleMainContent(false);
++        });
++
++        // File Upload Handler
++        const fileInput = document.getElementById('edit-file-upload');
++        fileInput.addEventListener('change', (e) => {
++            const file = e.target.files[0];
++            if (file) {
++                const reader = new FileReader();
++                reader.onload = (readerEvent) => {
++                    document.getElementById('edit-url').value = readerEvent.target.result; // Base64
++                };
++                reader.readAsDataURL(file);
 +            }
 +        });
-+    };
-     const v = settingsManager.settings.visuals;
-     const g = settingsManager.settings.gatekeeper;
-     const ai = settingsManager.settings.ai;
-@@ -1937,6 +1959,7 @@
-     setVal('set-openai-key', au.openAIKey || '');
-     setVal('set-recording-mode', au.recordingMode);
-     setVal('set-tts-engine', au.engine);
-+    updateToggleClasses('visuals', 'dualCoding', v.dualCoding);
++
++        // Save Handler
++        document.getElementById('btn-save-edit').addEventListener('click', () => {
++            const newConcept = document.getElementById('edit-concept').value;
++            const newURL = document.getElementById('edit-url').value;
++
++            if (!newConcept) {
++                alert("Concept name is required!");
++                return;
++            }
++
++            // Retrieve editing state from dataset to avoid closure leaks
++            const editingId = modal.dataset.editingId;
++
++            if (editingId) {
++                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
++            } else {
++                stateManager.addItem(currentRoomId, newConcept, newURL);
++            }
++
++            modal.classList.add('hidden');
++        toggleMainContent(false);
++            renderCarousel(currentRoomId);
++        });
++
++        // Wire up Mic
++        const micBtn = document.getElementById('btn-mic-concept');
++        setupMicButton(micBtn, (text) => {
++            document.getElementById('edit-concept').value = text;
++        });
++    }
++
++    // Set Editing State
++    if (isEditing) {
++        modal.dataset.editingId = item.id;
++    } else {
++        delete modal.dataset.editingId;
+     }
+ 
+     document.getElementById('modal-title').innerText = titleText;
+@@ -1606,48 +1712,12 @@
+     // Populate Data
+     const conceptInput = document.getElementById('edit-concept');
+     conceptInput.value = isEditing ? item.concept : '';
+-
+-    // Wire up Mic
+-    const micBtn = document.getElementById('btn-mic-concept');
+-    setupMicButton(micBtn, (text) => {
+-        conceptInput.value = text; // Overwrite or append? Overwrite for now.
+-    });
+     document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
+-
+-    // File Upload Handler
+-    const fileInput = document.getElementById('edit-file-upload');
+-    fileInput.onchange = (e) => {
+-        const file = e.target.files[0];
+-        if (file) {
+-            const reader = new FileReader();
+-            reader.onload = (readerEvent) => {
+-                document.getElementById('edit-url').value = readerEvent.target.result; // Base64
+-            };
+-            reader.readAsDataURL(file);
+-        }
+-    };
+-
+-    // Save Handler
+-    document.getElementById('btn-save-edit').onclick = () => {
+-        const newConcept = document.getElementById('edit-concept').value;
+-        const newURL = document.getElementById('edit-url').value;
+-
+-        if (!newConcept) {
+-            alert("Concept name is required!");
+-            return;
+-        }
+-
+-        if (isEditing) {
+-            stateManager.updateItemDetails(currentRoomId, item.id, newConcept, newURL);
+-        } else {
+-            stateManager.addItem(currentRoomId, newConcept, newURL);
+-        }
+-
+-        modal.classList.add('hidden');
+-        renderCarousel(currentRoomId);
+-    };
++    document.getElementById('edit-file-upload').value = '';
+ 
+     modal.classList.remove('hidden');
++    toggleMainContent(true);
++    setModalFocus(modal.id);
  }
  
- function setVal(id, val) {
-@@ -2673,6 +2696,7 @@
- const THEMES = {
-     dark: {
-         '--bg-main': '#121212',
-+        '--bg-gradient': 'radial-gradient(circle at top right, #1a1a2e, #0a0a0c)',
-         '--bg-card': '#1e1e1e',
-         '--bg-element': '#2a2a2a',
-         '--bg-input': '#333',
-@@ -2689,6 +2713,7 @@
-     },
-     light: {
-         '--bg-main': '#f5f5f5',
-+        '--bg-gradient': 'radial-gradient(circle at top right, #ffffff, #e0e0e0)',
-         '--bg-card': '#ffffff',
-         '--bg-element': '#e0e0e0',
-         '--bg-input': '#f0f0f0',
-@@ -2705,6 +2730,7 @@
-     },
-     matrix: {
-         '--bg-main': '#000000',
-+        '--bg-gradient': 'linear-gradient(to bottom, #001100, #000000)',
-         '--bg-card': '#0d0d0d',
-         '--bg-element': '#001a00',
-         '--bg-input': '#003300',
-@@ -2721,6 +2747,7 @@
-     },
-     cyberpunk: {
-         '--bg-main': '#0d0221',
-+        '--bg-gradient': 'linear-gradient(45deg, #0d0221, #261447)',
-         '--bg-card': '#261447',
-         '--bg-element': '#2e003e',
-         '--bg-input': '#5a189a',
-@@ -3223,14 +3250,14 @@
+ function handleCardClick(item, cardElement) {
+@@ -1669,6 +1739,24 @@
+     const room = stateManager.getRoom(currentRoomId);
+     const quiz = activeGatekeeper.generateQuiz(room.items);
+     launchQuizModal(quiz);
++}
++
++
++// --- A11Y HELPERS ---
++function setModalFocus(modalId) {
++    const modal = document.getElementById(modalId);
++    if (!modal) return;
++    const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
++    if (focusableElements.length) {
++        setTimeout(() => focusableElements[0].focus(), 50); // slight delay for transition
++    }
++}
++
++function toggleMainContent(isHidden) {
++    const mainContent = document.getElementById('main-content');
++    if (mainContent) {
++        mainContent.setAttribute('aria-hidden', isHidden.toString());
++    }
+ }
+ 
+ // --- QUIZ LOGIC ---
+@@ -1738,6 +1826,8 @@
+     }
+ 
+     modal.classList.remove('hidden');
++    toggleMainContent(true);
++    setModalFocus(modal.id);
+ }
+ 
+ function handleQuizAttempt(answer) {
+@@ -1769,6 +1859,7 @@
+         // Close modal after delay
+         setTimeout(() => {
+             document.getElementById('quiz-modal').classList.add('hidden');
++        toggleMainContent(false);
+         }, 1500);
+     } else {
+         feedback.innerText = result.message;
+@@ -1835,6 +1926,7 @@
+ 
+     document.getElementById('close-quiz').addEventListener('click', () => {
+         document.getElementById('quiz-modal').classList.add('hidden');
++        toggleMainContent(false);
+     });
+ 
+     // Keyboard Navigation
+@@ -1923,7 +2015,11 @@
+ }
+ 
+ function toggleSettings() {
+-    document.getElementById('settings-modal').classList.toggle('hidden');
++    const modal = document.getElementById('settings-modal');
++    modal.classList.toggle('hidden');
++    const isHidden = modal.classList.contains('hidden');
++    toggleMainContent(!isHidden);
++    if (!isHidden) setModalFocus('settings-modal');
+ }
+ 
+ function showTab(tabName) {
+@@ -1975,17 +2071,17 @@
+ function setupMicButton(buttonElement, onTranscript) {
+     if (!buttonElement) return;
+ 
+-    // Remove old listeners (cloning is a quick hack to clear listeners)
+-    const newBtn = buttonElement.cloneNode(true);
+-    buttonElement.parentNode.replaceChild(newBtn, buttonElement);
+-    buttonElement = newBtn;
++    // Remove any existing signal to prevent duplicated events
++    if (buttonElement._abortController) {
++        buttonElement._abortController.abort();
++    }
++    buttonElement._abortController = new AbortController();
++    const signal = buttonElement._abortController.signal;
+ 
+     let isRecording = false;
+-    let holdTimeout = null;
+ 
+     buttonElement.addEventListener('mousedown', async () => {
+         const mode = settingsManager.get('audio', 'recordingMode');
+-
+         if (mode === 'hold') {
+             console.log("🎤 Hold Mode: Start");
+             const result = await audioEngine.startRecording();
+@@ -1996,11 +2092,10 @@
+                 alert(`Cannot record: ${result.error}`);
+             }
+         }
+-    });
++    }, { signal });
+ 
+     buttonElement.addEventListener('mouseup', async () => {
+         const mode = settingsManager.get('audio', 'recordingMode');
+-
+         if (mode === 'hold') {
+              console.log("🎤 Hold Mode: Stop");
+              buttonElement.classList.remove('recording');
+@@ -2014,11 +2109,10 @@
+                  buttonElement.innerText = '⚠️ Error';
+              }
+         }
+-    });
++    }, { signal });
+ 
+     buttonElement.addEventListener('click', async () => {
+         const mode = settingsManager.get('audio', 'recordingMode');
+-
+         if (mode === 'toggle') {
+             if (!isRecording) {
+                 console.log("🎤 Toggle Mode: Start");
+@@ -2045,7 +2139,7 @@
+                 }
+             }
+         }
+-    });
++    }, { signal });
+ }
+ 
+ 
+@@ -3229,11 +3323,13 @@
+     padding: 20px;
+     font-size: 1.5em;
+     font-weight: 700;
+-    color: var(--text-header);
+-    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
++    color: var(--text-main);
+     opacity: 0; /* Hidden by default for dual coding */
+     transform: translateY(10px);
+     transition: all 0.3s ease;
++    text-align: center;
++    width: 100%;
++    box-sizing: border-box;
+ }
+ 
+ /* Always show label on active if not dual coding strict, or on hover */
+@@ -3265,8 +3361,9 @@
      position: absolute;
      top: 15px;
-     right: 15px;
--    background: rgba(0,0,0,0.8);
--    color: #ff9f43;
+     left: 15px;
+-    background: rgba(255,255,255,0.1);
+-    border: none;
 +    background: var(--bg-modal-overlay);
-+    color: var(--accent-color);
-     padding: 5px 12px;
-     border-radius: 20px;
-     font-weight: bold;
-     font-size: 0.9em;
-     backdrop-filter: blur(4px);
--    border: 1px solid rgba(255, 159, 67, 0.3);
-+    border: 1px solid var(--accent-glow);
- }
- 
- /* Edit Button (Floating) */
-@@ -3407,7 +3434,12 @@
-     transition: all 0.2s;
- }
- .toggle-switch button:hover { color: var(--text-main); }
--/* Note: Active state logic for toggles should be visualised via JS adding a class, or by default just text style */
-+/* Active state logic for toggles */
-+.toggle-switch button.active {
-+    background: var(--accent-color);
-+    color: var(--btn-text);
-+    font-weight: 600;
-+}
- 
- /* --- Extracted from index.html (General) --- */
- .container {
-@@ -3539,6 +3571,49 @@
- .feedback-success { color: var(--accent-color); }
- .feedback-failure { color: var(--error-color); }
- 
-+/* --- Sticky Menu --- */
-+.menu {
-+    position: sticky;
-+    top: 0;
-+    z-index: 100;
-+    background: var(--bg-card);
-+    backdrop-filter: blur(12px);
-+    -webkit-backdrop-filter: blur(12px);
-+    padding: 10px 20px;
-+    border-radius: var(--radius-lg);
 +    border: 1px solid var(--border-main);
-+    display: flex;
-+    justify-content: center;
-+    align-items: center;
-+    gap: 20px;
-+    margin-bottom: 20px;
-+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
++    color: var(--text-main);
+     border-radius: 50%;
+     width: 36px;
+     height: 36px;
+@@ -3274,6 +3371,7 @@
+     cursor: pointer;
+     opacity: 0;
+     transition: all 0.2s;
++    backdrop-filter: blur(4px);
+ }
+ .carousel-item:hover .edit-btn { opacity: 1; }
+ .edit-btn:hover { background: var(--accent-color); color: #000; }
+@@ -3614,6 +3712,14 @@
+     animation: pop 0.3s ease-out;
+ }
+ 
++.carousel-item:focus-visible {
++    outline: 2px solid var(--accent-color);
++    outline-offset: 4px;
 +}
-+
-+.room-controls {
-+    display: flex;
-+    align-items: center;
-+    gap: 10px;
-+}
-+
-+@keyframes pulse {
-+    0% { transform: scale(1); box-shadow: 0 0 0 0 var(--accent-glow); }
-+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0,0,0,0); }
-+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,0,0,0); }
-+}
-+@keyframes pop {
-+    0% { transform: scale(1); }
-+    50% { transform: scale(1.1); }
-+    100% { transform: scale(1); }
-+}
-+#btn-add-item:hover {
-+    animation: pulse 1s infinite;
-+    transform: translateY(-2px);
-+}
-+.pop-animation {
-+    animation: pop 0.3s ease-out;
++.carousel-item:focus:not(:focus-visible) {
++    outline: none;
 +}
 +
  
