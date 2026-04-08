@@ -24,8 +24,14 @@ function init() {
     const au = settingsManager.settings.audio;
     audioEngine.setConfig({ openAIKey: au.openAIKey });
 
-    // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
-    setInterval(() => renderCarousel(currentRoomId), 5000);
+    // Auto-refresh room classes every 5 seconds to show dust accumulating (for demo)
+    setInterval(() => {
+        const room = stateManager.getRoom(currentRoomId);
+        const container = document.querySelector('.carousel-container');
+        if (room && container) {
+            updateCarouselUI(room, container);
+        }
+    }, 5000);
 }
 
 function refreshRoomList() {
@@ -86,10 +92,64 @@ function renderCarousel(roomId) {
         return;
     }
 
+    // Event Delegation for clicks and keypress
+    container.addEventListener('click', handleContainerInteraction);
+    container.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleContainerInteraction(e);
+        }
+    });
+
+    function handleContainerInteraction(e) {
+        const itemEl = e.target.closest('.carousel-item');
+        if (!itemEl) return;
+
+        const index = parseInt(itemEl.dataset.index, 10);
+
+        // Handle Edit Button Click
+        const editBtn = e.target.closest('.edit-btn');
+        if (editBtn) {
+            e.stopPropagation();
+            const item = room.items[index];
+            openEditModal(item);
+            return;
+        }
+
+        // Handle Card Click
+        if (itemEl.classList.contains('active')) {
+            const item = room.items[index];
+            handleCardClick(item, itemEl);
+        } else {
+            currentLociIndex = index;
+            renderCarousel(currentRoomId);
+        }
+    }
+
+    // Event Delegation for hover (Dual Coding)
+    container.addEventListener('mouseover', (e) => {
+        const itemEl = e.target.closest('.carousel-item');
+        if (itemEl && document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
+            const label = itemEl.querySelector('.loci-label');
+            if (label) label.classList.add('revealed');
+        }
+    });
+
+    container.addEventListener('mouseout', (e) => {
+        const itemEl = e.target.closest('.carousel-item');
+        if (itemEl) {
+            const label = itemEl.querySelector('.loci-label');
+            if (label) label.classList.remove('revealed');
+        }
+    });
+
+    const fragment = document.createDocumentFragment();
+
     room.items.forEach((item, index) => {
         const itemEl = document.createElement('div');
         // Initial state set by updateCarouselUI mostly, but we set basics here
         itemEl.className = 'carousel-item';
+        itemEl.setAttribute('tabindex', '0');
         itemEl.dataset.id = item.id;
         itemEl.dataset.index = index;
 
@@ -113,39 +173,19 @@ function renderCarousel(roomId) {
             itemEl.appendChild(streakBadge);
         }
 
-        // Dual Coding Hover
-        itemEl.addEventListener('mouseenter', () => {
-            if (document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
-                label.classList.add('revealed');
-            }
-        });
-        itemEl.addEventListener('mouseleave', () => label.classList.remove('revealed'));
-
-        // Interaction
-        itemEl.addEventListener('click', () => {
-            if (itemEl.classList.contains('active')) {
-                handleCardClick(item, itemEl);
-            } else {
-                // Click on prev/next to navigate
-                currentLociIndex = index;
-                renderCarousel(currentRoomId);
-            }
-        });
-
-        // Edit Button (Only visible on active?)
+        // Edit Button
         const editBtn = document.createElement('button');
         editBtn.className = 'edit-btn';
         editBtn.innerText = '✏️';
         editBtn.title = 'Edit Item';
-        editBtn.onclick = (e) => {
-            e.stopPropagation();
-            openEditModal(item);
-        };
+        editBtn.setAttribute('aria-label', 'Edit Item');
+        // Events are now handled via delegation
         itemEl.appendChild(editBtn);
 
-        container.appendChild(itemEl);
+        fragment.appendChild(itemEl);
     });
 
+    container.appendChild(fragment);
     roomContainer.appendChild(container);
 
     // Controls
@@ -155,17 +195,20 @@ function renderCarousel(roomId) {
     const prevBtn = document.createElement('button');
     prevBtn.className = 'nav-btn prev';
     prevBtn.innerText = '◀';
+    prevBtn.setAttribute('aria-label', 'Previous Item');
     prevBtn.onclick = prevLoci;
 
     const nextBtn = document.createElement('button');
     nextBtn.className = 'nav-btn next';
     nextBtn.innerText = '▶';
+    nextBtn.setAttribute('aria-label', 'Next Item');
     nextBtn.onclick = nextLoci;
 
     const tourBtn = document.createElement('button');
     tourBtn.id = 'btn-tour';
     tourBtn.className = 'nav-btn tour';
     tourBtn.innerText = tourInterval ? '⏸️' : '▶️ Tour';
+    tourBtn.setAttribute('aria-label', 'Toggle Tour Mode');
     tourBtn.onclick = toggleTour;
 
     controls.appendChild(prevBtn);
@@ -261,7 +304,7 @@ function openEditModal(item = null) {
             <div class="modal-content">
                 <div class="modal-header">
                     <h2 id="modal-title"></h2>
-                    <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
+                    <button class="close-btn" aria-label="Close Modal">×</button>
                 </div>
                 <div class="modal-body">
                     <div class="setting-group">
@@ -288,6 +331,62 @@ function openEditModal(item = null) {
             </div>
         `;
         document.body.appendChild(modal);
+
+        // Attach static event listeners ONCE
+        modal.querySelector('.close-btn').addEventListener('click', () => {
+            modal.classList.add('hidden');
+        toggleMainContent(false);
+        });
+
+        // File Upload Handler
+        const fileInput = document.getElementById('edit-file-upload');
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (readerEvent) => {
+                    document.getElementById('edit-url').value = readerEvent.target.result; // Base64
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Save Handler
+        document.getElementById('btn-save-edit').addEventListener('click', () => {
+            const newConcept = document.getElementById('edit-concept').value;
+            const newURL = document.getElementById('edit-url').value;
+
+            if (!newConcept) {
+                alert("Concept name is required!");
+                return;
+            }
+
+            // Retrieve editing state from dataset to avoid closure leaks
+            const editingId = modal.dataset.editingId;
+
+            if (editingId) {
+                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
+            } else {
+                stateManager.addItem(currentRoomId, newConcept, newURL);
+            }
+
+            modal.classList.add('hidden');
+        toggleMainContent(false);
+            renderCarousel(currentRoomId);
+        });
+
+        // Wire up Mic
+        const micBtn = document.getElementById('btn-mic-concept');
+        setupMicButton(micBtn, (text) => {
+            document.getElementById('edit-concept').value = text;
+        });
+    }
+
+    // Set Editing State
+    if (isEditing) {
+        modal.dataset.editingId = item.id;
+    } else {
+        delete modal.dataset.editingId;
     }
 
     document.getElementById('modal-title').innerText = titleText;
@@ -295,48 +394,12 @@ function openEditModal(item = null) {
     // Populate Data
     const conceptInput = document.getElementById('edit-concept');
     conceptInput.value = isEditing ? item.concept : '';
-
-    // Wire up Mic
-    const micBtn = document.getElementById('btn-mic-concept');
-    setupMicButton(micBtn, (text) => {
-        conceptInput.value = text; // Overwrite or append? Overwrite for now.
-    });
     document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
-
-    // File Upload Handler
-    const fileInput = document.getElementById('edit-file-upload');
-    fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (readerEvent) => {
-                document.getElementById('edit-url').value = readerEvent.target.result; // Base64
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    // Save Handler
-    document.getElementById('btn-save-edit').onclick = () => {
-        const newConcept = document.getElementById('edit-concept').value;
-        const newURL = document.getElementById('edit-url').value;
-
-        if (!newConcept) {
-            alert("Concept name is required!");
-            return;
-        }
-
-        if (isEditing) {
-            stateManager.updateItemDetails(currentRoomId, item.id, newConcept, newURL);
-        } else {
-            stateManager.addItem(currentRoomId, newConcept, newURL);
-        }
-
-        modal.classList.add('hidden');
-        renderCarousel(currentRoomId);
-    };
+    document.getElementById('edit-file-upload').value = '';
 
     modal.classList.remove('hidden');
+    toggleMainContent(true);
+    setModalFocus(modal.id);
 }
 
 function handleCardClick(item, cardElement) {
@@ -358,6 +421,24 @@ function handleCardClick(item, cardElement) {
     const room = stateManager.getRoom(currentRoomId);
     const quiz = activeGatekeeper.generateQuiz(room.items);
     launchQuizModal(quiz);
+}
+
+
+// --- A11Y HELPERS ---
+function setModalFocus(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (focusableElements.length) {
+        setTimeout(() => focusableElements[0].focus(), 50); // slight delay for transition
+    }
+}
+
+function toggleMainContent(isHidden) {
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.setAttribute('aria-hidden', isHidden.toString());
+    }
 }
 
 // --- QUIZ LOGIC ---
@@ -427,6 +508,8 @@ function launchQuizModal(quiz) {
     }
 
     modal.classList.remove('hidden');
+    toggleMainContent(true);
+    setModalFocus(modal.id);
 }
 
 function handleQuizAttempt(answer) {
@@ -458,6 +541,7 @@ function handleQuizAttempt(answer) {
         // Close modal after delay
         setTimeout(() => {
             document.getElementById('quiz-modal').classList.add('hidden');
+        toggleMainContent(false);
         }, 1500);
     } else {
         feedback.innerText = result.message;
@@ -524,6 +608,7 @@ function setupEventListeners() {
 
     document.getElementById('close-quiz').addEventListener('click', () => {
         document.getElementById('quiz-modal').classList.add('hidden');
+        toggleMainContent(false);
     });
 
     // Keyboard Navigation
@@ -612,7 +697,11 @@ function setupEventListeners() {
 }
 
 function toggleSettings() {
-    document.getElementById('settings-modal').classList.toggle('hidden');
+    const modal = document.getElementById('settings-modal');
+    modal.classList.toggle('hidden');
+    const isHidden = modal.classList.contains('hidden');
+    toggleMainContent(!isHidden);
+    if (!isHidden) setModalFocus('settings-modal');
 }
 
 function showTab(tabName) {
@@ -664,17 +753,17 @@ document.addEventListener('DOMContentLoaded', init);
 function setupMicButton(buttonElement, onTranscript) {
     if (!buttonElement) return;
 
-    // Remove old listeners (cloning is a quick hack to clear listeners)
-    const newBtn = buttonElement.cloneNode(true);
-    buttonElement.parentNode.replaceChild(newBtn, buttonElement);
-    buttonElement = newBtn;
+    // Remove any existing signal to prevent duplicated events
+    if (buttonElement._abortController) {
+        buttonElement._abortController.abort();
+    }
+    buttonElement._abortController = new AbortController();
+    const signal = buttonElement._abortController.signal;
 
     let isRecording = false;
-    let holdTimeout = null;
 
     buttonElement.addEventListener('mousedown', async () => {
         const mode = settingsManager.get('audio', 'recordingMode');
-
         if (mode === 'hold') {
             console.log("🎤 Hold Mode: Start");
             const result = await audioEngine.startRecording();
@@ -685,11 +774,10 @@ function setupMicButton(buttonElement, onTranscript) {
                 alert(`Cannot record: ${result.error}`);
             }
         }
-    });
+    }, { signal });
 
     buttonElement.addEventListener('mouseup', async () => {
         const mode = settingsManager.get('audio', 'recordingMode');
-
         if (mode === 'hold') {
              console.log("🎤 Hold Mode: Stop");
              buttonElement.classList.remove('recording');
@@ -703,11 +791,10 @@ function setupMicButton(buttonElement, onTranscript) {
                  buttonElement.innerText = '⚠️ Error';
              }
         }
-    });
+    }, { signal });
 
     buttonElement.addEventListener('click', async () => {
         const mode = settingsManager.get('audio', 'recordingMode');
-
         if (mode === 'toggle') {
             if (!isRecording) {
                 console.log("🎤 Toggle Mode: Start");
@@ -734,5 +821,5 @@ function setupMicButton(buttonElement, onTranscript) {
                 }
             }
         }
-    });
+    }, { signal });
 }

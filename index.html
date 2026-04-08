@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
-    <div class="container">
+    <div class="container" id="main-content" aria-hidden="false">
         <h1>dome-icile</h1>
         <p>Construct. Populate. Remember.</p>
         
@@ -19,8 +19,8 @@
                 <select id="room-select" class="dropdown"></select>
                 <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
             </div>
-            <button id="btn-settings" class="btn small-btn">⚙️ Settings</button>
-            <button id="btn-ritual" class="btn small-btn">🕯️ Ritual Mode</button>
+            <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
+            <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
         </div>
 
         <!-- SETTINGS MODAL -->
@@ -28,7 +28,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>🧠 Neural Settings</h2>
-                    <button class="close-btn" id="close-settings">×</button>
+                    <button class="close-btn" id="close-settings" aria-label="Close Settings Modal">×</button>
                 </div>
 
                 <div class="modal-body">
@@ -119,7 +119,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h2>🛡️ The Gatekeeper</h2>
-                    <button class="close-btn" id="close-quiz">×</button>
+                    <button class="close-btn" id="close-quiz" aria-label="Close Quiz Modal">×</button>
                 </div>
                 <div class="modal-body">
                     <p id="quiz-question">What resides here?</p>
