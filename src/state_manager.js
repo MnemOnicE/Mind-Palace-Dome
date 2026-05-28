@@ -91,7 +91,7 @@ class StateManager {
     /**
      * Updates item details (Editing).
      */
-    updateItemDetails(roomId, itemId, newConcept, newVisualURL) {
+    updateItemDetails(roomId, itemId, newConcept, newVisualURL, targetRoomId = null) {
         const room = this.state.rooms[roomId];
         if (!room) return;
         const itemIndex = room.items.findIndex(i => i.id == itemId);
@@ -100,6 +100,7 @@ class StateManager {
         const item = room.items[itemIndex];
         if (newConcept) item.concept = newConcept;
         if (newVisualURL) item.visualURL = newVisualURL;
+        if (targetRoomId !== null) item.targetRoomId = targetRoomId === '' ? null : targetRoomId;
 
         this.state.rooms[roomId].items[itemIndex] = item;
         this.saveState();
@@ -149,6 +150,93 @@ class StateManager {
     /**
      * Reset everything (Debug/Ritual)
      */
+
+    /**
+     * Generates a JSON export of the current state.
+     */
+    exportStateJSON() {
+        return JSON.stringify(this.state, null, 2);
+    }
+
+    /**
+     * Previews a merge operation to let the UI display what will change.
+     * @param {Object} importedState
+     * @returns {Object} diff - Information about new rooms, new items, and updated items.
+     */
+    previewMerge(importedState) {
+        const diff = {
+            newRooms: [],
+            roomsWithNewItems: [],
+            totalNewItems: 0,
+            totalUpdatedItems: 0
+        };
+
+        if (!importedState || !importedState.rooms) return diff;
+
+        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
+            const existingRoom = this.state.rooms[roomId];
+
+            if (!existingRoom) {
+                diff.newRooms.push(incomingRoom.name);
+                diff.totalNewItems += incomingRoom.items.length;
+            } else {
+                let newItems = 0;
+                let updatedItems = 0;
+
+                incomingRoom.items.forEach(incomingItem => {
+                    const existingItem = existingRoom.items.find(i => i.id === incomingItem.id);
+                    if (!existingItem) {
+                        newItems++;
+                    } else if (incomingItem.lastReviewed > existingItem.lastReviewed) {
+                        updatedItems++; // Only overwrite stats if incoming is newer
+                    }
+                });
+
+                if (newItems > 0 || updatedItems > 0) {
+                    diff.roomsWithNewItems.push(existingRoom.name);
+                    diff.totalNewItems += newItems;
+                    diff.totalUpdatedItems += updatedItems;
+                }
+            }
+        }
+
+        return diff;
+    }
+
+    /**
+     * Performs a non-destructive merge of imported state.
+     * Overwrites item stats only if incoming lastReviewed is more recent.
+     */
+    executeMerge(importedState) {
+        if (!importedState || !importedState.rooms) return false;
+
+        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
+            const existingRoom = this.state.rooms[roomId];
+
+            if (!existingRoom) {
+                // Entire room is new, just copy it over
+                this.state.rooms[roomId] = incomingRoom;
+            } else {
+                // Merge items
+                incomingRoom.items.forEach(incomingItem => {
+                    const existingItemIndex = existingRoom.items.findIndex(i => i.id === incomingItem.id);
+                    if (existingItemIndex === -1) {
+                        existingRoom.items.push(incomingItem);
+                    } else {
+                        // Conflict resolution: keep the most recently reviewed
+                        const existingItem = existingRoom.items[existingItemIndex];
+                        if (incomingItem.lastReviewed > existingItem.lastReviewed) {
+                            existingRoom.items[existingItemIndex] = { ...existingItem, ...incomingItem };
+                        }
+                    }
+                });
+            }
+        }
+
+        this.saveState();
+        return true;
+    }
+
     reset() {
         this.state = { rooms: DEFAULT_ROOMS };
         this.saveState();

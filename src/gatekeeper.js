@@ -46,7 +46,7 @@ class Gatekeeper {
      * Validates the user's answer and updates scaling history.
      * @param {String} userAnswer
      */
-    checkAnswer(userAnswer) {
+    checkAnswer(userAnswer, isVoice = false) {
         // Normalize strings (ignore case, whitespace) for fair grading
         const normUser = this.normalize(userAnswer);
         const normTarget = this.normalize(this.targetAnswer);
@@ -59,7 +59,7 @@ class Gatekeeper {
 
         // 2. Fuzzy Match
         const dist = this.calculateLevenshtein(normUser, normTarget);
-        const threshold = this.getFuzzyThreshold(normTarget.length);
+        const threshold = isVoice ? this.getVoiceFuzzyThreshold(normTarget.length) : this.getFuzzyThreshold(normTarget.length);
 
         if (dist <= threshold) {
             this.consecutiveSuccesses++;
@@ -70,6 +70,12 @@ class Gatekeeper {
         // Failure in Dynamic mode resets progress to ensure mastery
         if (this.type === 'DYNAMIC') this.consecutiveSuccesses = 0;
         return { success: false, message: "The gate remains shut.", newStreak: 0 };
+    }
+
+    getVoiceFuzzyThreshold(length) {
+        if (length <= 4) return 2;
+        if (length <= 8) return 4;
+        return 6; // 'mitochondria' (12) vs 'might o condria' is dist 5. So we allow up to half length for voice matching roughly.
     }
 
     getFuzzyThreshold(length) {

@@ -19,6 +19,9 @@
                 <select id="room-select" class="dropdown"></select>
                 <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
             </div>
+            <button id="btn-export-sync" class="btn small-btn" aria-label="Export Palace">📤 Export</button>
+            <button id="btn-import-sync" class="btn small-btn" aria-label="Import Palace">📥 Import</button>
+            <input type="file" id="file-import-sync" accept=".json" style="display: none;" />
             <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
             <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
         </div>
@@ -158,5 +161,27 @@
     </div>
 
     <script type="module" src="./src/app.js"></script>
+
+    <!-- Merge Preview Modal -->
+    <div id="merge-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="merge-title">
+        <div class="modal-content">
+            <h2 id="merge-title">Blueprint Sync</h2>
+            <div id="merge-diff-content">
+                <!-- Diff details will be injected here -->
+            </div>
+
+                <div class="input-group">
+                    <label for="memory-target-room">Wormhole to Room (Optional ID):</label>
+                    <input type="text" id="memory-target-room" placeholder="e.g. narnia-room" />
+                    <small class="hint">Makes this item a door to another room.</small>
+                </div>
+
+                <div class="modal-actions">
+                <button id="btn-merge-confirm" class="btn primary-btn">Accept Merge</button>
+                <button id="btn-merge-cancel" class="btn secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
