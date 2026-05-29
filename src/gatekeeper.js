@@ -73,9 +73,10 @@ class Gatekeeper {
     }
 
     getVoiceFuzzyThreshold(length) {
-        if (length <= 4) return 2;
-        if (length <= 8) return 4;
-        return 6; // 'mitochondria' (12) vs 'might o condria' is dist 5. So we allow up to half length for voice matching roughly.
+        if (length <= 3) return 1;
+        if (length <= 6) return 2;
+        if (length <= 10) return 4;
+        return 6;
     }
 
     getFuzzyThreshold(length) {
