@@ -1,499 +1,534 @@
 --- Previous Snapshot
 +++ Current Snapshot
-@@ -248,7 +248,7 @@
-     <link rel="stylesheet" href="src/styles.css">
- </head>
- <body>
--    <div class="container">
-+    <div class="container" id="main-content" aria-hidden="false">
-         <h1>dome-icile</h1>
-         <p>Construct. Populate. Remember.</p>
-         
-@@ -257,8 +257,8 @@
+@@ -257,6 +257,9 @@
                  <select id="room-select" class="dropdown"></select>
                  <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
              </div>
--            <button id="btn-settings" class="btn small-btn">⚙️ Settings</button>
--            <button id="btn-ritual" class="btn small-btn">🕯️ Ritual Mode</button>
-+            <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
-+            <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
++            <button id="btn-export-sync" class="btn small-btn" aria-label="Export Palace">📤 Export</button>
++            <button id="btn-import-sync" class="btn small-btn" aria-label="Import Palace">📥 Import</button>
++            <input type="file" id="file-import-sync" accept=".json" style="display: none;" />
+             <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
+             <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
          </div>
+@@ -396,6 +399,28 @@
+     </div>
  
-         <!-- SETTINGS MODAL -->
-@@ -266,7 +266,7 @@
-             <div class="modal-content">
-                 <div class="modal-header">
-                     <h2>🧠 Neural Settings</h2>
--                    <button class="close-btn" id="close-settings">×</button>
-+                    <button class="close-btn" id="close-settings" aria-label="Close Settings Modal">×</button>
-                 </div>
- 
-                 <div class="modal-body">
-@@ -357,7 +357,7 @@
-             <div class="modal-content">
-                 <div class="modal-header">
-                     <h2>🛡️ The Gatekeeper</h2>
--                    <button class="close-btn" id="close-quiz">×</button>
-+                    <button class="close-btn" id="close-quiz" aria-label="Close Quiz Modal">×</button>
-                 </div>
-                 <div class="modal-body">
-                     <p id="quiz-question">What resides here?</p>
-@@ -664,6 +664,13 @@
- console.log('✅ Passed.');
- 
- console.log('🎉 All SRS Tests Passed!');
+     <script type="module" src="./src/app.js"></script>
 +
++    <!-- Merge Preview Modal -->
++    <div id="merge-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="merge-title">
++        <div class="modal-content">
++            <h2 id="merge-title">Blueprint Sync</h2>
++            <div id="merge-diff-content">
++                <!-- Diff details will be injected here -->
++            </div>
 +
++                <div class="input-group">
++                    <label for="memory-target-room">Wormhole to Room (Optional ID):</label>
++                    <input type="text" id="memory-target-room" placeholder="e.g. narnia-room" />
++                    <small class="hint">Makes this item a door to another room.</small>
++                </div>
 +
-+================================================================
-+File: ./test_state.mjs
-+================================================================
-+// Quick check of the test to ensure tests pass
++                <div class="modal-actions">
++                <button id="btn-merge-confirm" class="btn primary-btn">Accept Merge</button>
++                <button id="btn-merge-cancel" class="btn secondary-btn">Cancel</button>
++            </div>
++        </div>
++    </div>
++
+ </body>
+ </html>
  
- 
- 
-@@ -1335,8 +1342,14 @@
-     const au = settingsManager.settings.audio;
-     audioEngine.setConfig({ openAIKey: au.openAIKey });
- 
--    // Auto-refresh room every 5 seconds to show dust accumulating (for demo)
--    setInterval(() => renderCarousel(currentRoomId), 5000);
-+    // Auto-refresh room classes every 5 seconds to show dust accumulating (for demo)
-+    setInterval(() => {
-+        const room = stateManager.getRoom(currentRoomId);
-+        const container = document.querySelector('.carousel-container');
-+        if (room && container) {
-+            updateCarouselUI(room, container);
+@@ -1327,7 +1352,84 @@
+ // State
+ let activeGatekeeper = null;
+ let currentTargetItem = null;
++
+ let currentRoomId = 'foyer';
++let roomNavStack = []; // History for breadcrumbs
++
++function navigateToRoom(roomId, viaWormhole = false) {
++    if (!stateManager.getRoom(roomId)) {
++        alert("Room " + roomId + " does not exist.");
++        return;
++    }
++
++    if (viaWormhole) {
++        roomNavStack.push(currentRoomId);
++    } else {
++        // If changing via dropdown, clear stack
++        roomNavStack = [];
++    }
++
++    currentRoomId = roomId;
++    const select = document.getElementById('room-select');
++    if (select) select.value = currentRoomId;
++
++    renderCarousel(currentRoomId);
++    updateBreadcrumbs();
++}
++
++function navigateBack() {
++    if (roomNavStack.length === 0) return;
++    const previousRoomId = roomNavStack.pop();
++
++    currentRoomId = previousRoomId;
++    const select = document.getElementById('room-select');
++    if (select) select.value = currentRoomId;
++
++    renderCarousel(currentRoomId);
++    updateBreadcrumbs();
++}
++
++function updateBreadcrumbs() {
++    const breadcrumbEl = document.getElementById('breadcrumb-trail');
++    if (!breadcrumbEl) return;
++
++    if (roomNavStack.length === 0) {
++        breadcrumbEl.innerHTML = '';
++        return;
++    }
++
++    let html = '';
++
++    // Base room
++    const baseRoom = stateManager.getRoom(roomNavStack[0]);
++    if (baseRoom) html += `<span class="breadcrumb-item link" onclick="window.navigateToRoom('${baseRoom.id}')">${baseRoom.name}</span> > `;
++
++    // Intermediate
++    for (let i = 1; i < roomNavStack.length; i++) {
++        const room = stateManager.getRoom(roomNavStack[i]);
++        if (room) {
++             html += `<span class="breadcrumb-item link" onclick="window.popNavStackTo(${i})">${room.name}</span> > `;
 +        }
-+    }, 5000);
- }
++    }
++
++    // Current
++    const currentRoom = stateManager.getRoom(currentRoomId);
++    if (currentRoom) html += `<span class="breadcrumb-item active">${currentRoom.name}</span>`;
++
++    // Add escape hatch
++    html += ` <button class="btn small-btn" onclick="window.navigateBack()">↩ Back</button>`;
++
++    breadcrumbEl.innerHTML = html;
++}
++
++if (typeof window !== 'undefined') window.navigateToRoom = navigateToRoom;
++if (typeof window !== 'undefined') window.navigateBack = navigateBack;
++if (typeof window !== 'undefined') window.popNavStackTo = function(index) {
++    const targetRoomId = roomNavStack[index];
++    roomNavStack = roomNavStack.slice(0, index);
++    navigateToRoom(targetRoomId); // Navigates but clears stack after index since viaWormhole=false
++};
++
+ let audioEngine = new AudioEngine();
+ let currentLociIndex = 0;
+ let tourInterval = null;
+@@ -1365,8 +1467,28 @@
+         option.innerText = room.name;
+         if (room.id === currentRoomId) option.selected = true;
+         select.appendChild(option);
++
+     });
+-}
++
++    // --- Diegetic Decay Analytics ---
++    // If a significant portion of the room is overdue, apply room-wide visual decay
++    const mainView = document.querySelector('.carousel-view');
++    if (mainView && room.items.length > 0) {
++        const decayRatio = overdueCount / room.items.length;
++
++        // Remove existing decay classes
++        mainView.classList.remove('room-decay-light', 'room-decay-medium', 'room-decay-heavy');
++
++        if (decayRatio > 0.75) {
++            mainView.classList.add('room-decay-heavy');
++        } else if (decayRatio > 0.5) {
++            mainView.classList.add('room-decay-medium');
++        } else if (decayRatio > 0.25) {
++            mainView.classList.add('room-decay-light');
++        }
++    }
++}
++
  
- function refreshRoomList() {
-@@ -1397,10 +1410,64 @@
+ function renderCarousel(roomId) {
+     const roomContainer = document.getElementById('room-view');
+@@ -1541,13 +1663,14 @@
+ function updateCarouselUI(room, container) {
+     const items = container.querySelectorAll('.carousel-item');
+     if (items.length !== room.items.length) {
+-        // Mismatch (added/removed item), force re-render
+-        container.parentNode.innerHTML = ''; // Clear to trigger rebuild next time
++        container.parentNode.innerHTML = '';
+         renderCarousel(room.id);
          return;
      }
  
-+    // Event Delegation for clicks and keypress
-+    container.addEventListener('click', handleContainerInteraction);
-+    container.addEventListener('keydown', (e) => {
-+        if (e.key === 'Enter' || e.key === ' ') {
-+            e.preventDefault();
-+            handleContainerInteraction(e);
-+        }
-+    });
+     const now = Date.now();
++    let overdueCount = 0;
 +
-+    function handleContainerInteraction(e) {
-+        const itemEl = e.target.closest('.carousel-item');
-+        if (!itemEl) return;
-+
-+        const index = parseInt(itemEl.dataset.index, 10);
-+
-+        // Handle Edit Button Click
-+        const editBtn = e.target.closest('.edit-btn');
-+        if (editBtn) {
-+            e.stopPropagation();
-+            const item = room.items[index];
-+            openEditModal(item);
-+            return;
-+        }
-+
-+        // Handle Card Click
-+        if (itemEl.classList.contains('active')) {
-+            const item = room.items[index];
-+            handleCardClick(item, itemEl);
-+        } else {
-+            currentLociIndex = index;
-+            renderCarousel(currentRoomId);
-+        }
-+    }
-+
-+    // Event Delegation for hover (Dual Coding)
-+    container.addEventListener('mouseover', (e) => {
-+        const itemEl = e.target.closest('.carousel-item');
-+        if (itemEl && document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
-+            const label = itemEl.querySelector('.loci-label');
-+            if (label) label.classList.add('revealed');
-+        }
-+    });
-+
-+    container.addEventListener('mouseout', (e) => {
-+        const itemEl = e.target.closest('.carousel-item');
-+        if (itemEl) {
-+            const label = itemEl.querySelector('.loci-label');
-+            if (label) label.classList.remove('revealed');
-+        }
-+    });
-+
-+    const fragment = document.createDocumentFragment();
-+
-     room.items.forEach((item, index) => {
-         const itemEl = document.createElement('div');
-         // Initial state set by updateCarouselUI mostly, but we set basics here
-         itemEl.className = 'carousel-item';
-+        itemEl.setAttribute('tabindex', '0');
-         itemEl.dataset.id = item.id;
-         itemEl.dataset.index = index;
  
-@@ -1424,39 +1491,19 @@
-             itemEl.appendChild(streakBadge);
-         }
+     items.forEach((el, index) => {
+         let stateClass = 'carousel-item';
+@@ -1683,9 +1806,16 @@
+             const editingId = modal.dataset.editingId;
  
--        // Dual Coding Hover
--        itemEl.addEventListener('mouseenter', () => {
--            if (document.body.dataset.dualCoding === 'hover' && itemEl.classList.contains('active')) {
--                label.classList.add('revealed');
--            }
--        });
--        itemEl.addEventListener('mouseleave', () => label.classList.remove('revealed'));
--
--        // Interaction
--        itemEl.addEventListener('click', () => {
--            if (itemEl.classList.contains('active')) {
--                handleCardClick(item, itemEl);
--            } else {
--                // Click on prev/next to navigate
--                currentLociIndex = index;
--                renderCarousel(currentRoomId);
--            }
--        });
--
--        // Edit Button (Only visible on active?)
-+        // Edit Button
-         const editBtn = document.createElement('button');
-         editBtn.className = 'edit-btn';
-         editBtn.innerText = '✏️';
-         editBtn.title = 'Edit Item';
--        editBtn.onclick = (e) => {
--            e.stopPropagation();
--            openEditModal(item);
--        };
-+        editBtn.setAttribute('aria-label', 'Edit Item');
-+        // Events are now handled via delegation
-         itemEl.appendChild(editBtn);
- 
--        container.appendChild(itemEl);
-+        fragment.appendChild(itemEl);
-     });
- 
-+    container.appendChild(fragment);
-     roomContainer.appendChild(container);
- 
-     // Controls
-@@ -1466,17 +1513,20 @@
-     const prevBtn = document.createElement('button');
-     prevBtn.className = 'nav-btn prev';
-     prevBtn.innerText = '◀';
-+    prevBtn.setAttribute('aria-label', 'Previous Item');
-     prevBtn.onclick = prevLoci;
- 
-     const nextBtn = document.createElement('button');
-     nextBtn.className = 'nav-btn next';
-     nextBtn.innerText = '▶';
-+    nextBtn.setAttribute('aria-label', 'Next Item');
-     nextBtn.onclick = nextLoci;
- 
-     const tourBtn = document.createElement('button');
-     tourBtn.id = 'btn-tour';
-     tourBtn.className = 'nav-btn tour';
-     tourBtn.innerText = tourInterval ? '⏸️' : '▶️ Tour';
-+    tourBtn.setAttribute('aria-label', 'Toggle Tour Mode');
-     tourBtn.onclick = toggleTour;
- 
-     controls.appendChild(prevBtn);
-@@ -1572,7 +1622,7 @@
-             <div class="modal-content">
-                 <div class="modal-header">
-                     <h2 id="modal-title"></h2>
--                    <button class="close-btn" onclick="document.getElementById('edit-modal').classList.add('hidden')">×</button>
-+                    <button class="close-btn" aria-label="Close Modal">×</button>
-                 </div>
-                 <div class="modal-body">
-                     <div class="setting-group">
-@@ -1599,6 +1649,62 @@
-             </div>
-         `;
-         document.body.appendChild(modal);
-+
-+        // Attach static event listeners ONCE
-+        modal.querySelector('.close-btn').addEventListener('click', () => {
-+            modal.classList.add('hidden');
-+        toggleMainContent(false);
-+        });
-+
-+        // File Upload Handler
-+        const fileInput = document.getElementById('edit-file-upload');
-+        fileInput.addEventListener('change', (e) => {
-+            const file = e.target.files[0];
-+            if (file) {
-+                const reader = new FileReader();
-+                reader.onload = (readerEvent) => {
-+                    document.getElementById('edit-url').value = readerEvent.target.result; // Base64
-+                };
-+                reader.readAsDataURL(file);
-+            }
-+        });
-+
-+        // Save Handler
-+        document.getElementById('btn-save-edit').addEventListener('click', () => {
-+            const newConcept = document.getElementById('edit-concept').value;
-+            const newURL = document.getElementById('edit-url').value;
-+
-+            if (!newConcept) {
-+                alert("Concept name is required!");
-+                return;
-+            }
-+
-+            // Retrieve editing state from dataset to avoid closure leaks
-+            const editingId = modal.dataset.editingId;
-+
-+            if (editingId) {
-+                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
-+            } else {
-+                stateManager.addItem(currentRoomId, newConcept, newURL);
-+            }
-+
-+            modal.classList.add('hidden');
-+        toggleMainContent(false);
-+            renderCarousel(currentRoomId);
-+        });
-+
-+        // Wire up Mic
-+        const micBtn = document.getElementById('btn-mic-concept');
-+        setupMicButton(micBtn, (text) => {
-+            document.getElementById('edit-concept').value = text;
-+        });
-+    }
-+
-+    // Set Editing State
-+    if (isEditing) {
-+        modal.dataset.editingId = item.id;
-+    } else {
-+        delete modal.dataset.editingId;
-     }
- 
-     document.getElementById('modal-title').innerText = titleText;
-@@ -1606,48 +1712,12 @@
-     // Populate Data
-     const conceptInput = document.getElementById('edit-concept');
-     conceptInput.value = isEditing ? item.concept : '';
--
--    // Wire up Mic
--    const micBtn = document.getElementById('btn-mic-concept');
--    setupMicButton(micBtn, (text) => {
--        conceptInput.value = text; // Overwrite or append? Overwrite for now.
--    });
-     document.getElementById('edit-url').value = isEditing ? item.visualURL : '';
--
--    // File Upload Handler
--    const fileInput = document.getElementById('edit-file-upload');
--    fileInput.onchange = (e) => {
--        const file = e.target.files[0];
--        if (file) {
--            const reader = new FileReader();
--            reader.onload = (readerEvent) => {
--                document.getElementById('edit-url').value = readerEvent.target.result; // Base64
--            };
--            reader.readAsDataURL(file);
--        }
--    };
--
--    // Save Handler
--    document.getElementById('btn-save-edit').onclick = () => {
--        const newConcept = document.getElementById('edit-concept').value;
--        const newURL = document.getElementById('edit-url').value;
--
--        if (!newConcept) {
--            alert("Concept name is required!");
--            return;
--        }
--
--        if (isEditing) {
--            stateManager.updateItemDetails(currentRoomId, item.id, newConcept, newURL);
--        } else {
--            stateManager.addItem(currentRoomId, newConcept, newURL);
--        }
--
--        modal.classList.add('hidden');
--        renderCarousel(currentRoomId);
--    };
-+    document.getElementById('edit-file-upload').value = '';
- 
-     modal.classList.remove('hidden');
-+    toggleMainContent(true);
-+    setModalFocus(modal.id);
- }
- 
- function handleCardClick(item, cardElement) {
-@@ -1669,6 +1739,24 @@
-     const room = stateManager.getRoom(currentRoomId);
-     const quiz = activeGatekeeper.generateQuiz(room.items);
-     launchQuizModal(quiz);
-+}
-+
-+
-+// --- A11Y HELPERS ---
-+function setModalFocus(modalId) {
-+    const modal = document.getElementById(modalId);
-+    if (!modal) return;
-+    const focusableElements = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-+    if (focusableElements.length) {
-+        setTimeout(() => focusableElements[0].focus(), 50); // slight delay for transition
-+    }
-+}
-+
-+function toggleMainContent(isHidden) {
-+    const mainContent = document.getElementById('main-content');
-+    if (mainContent) {
-+        mainContent.setAttribute('aria-hidden', isHidden.toString());
-+    }
- }
- 
- // --- QUIZ LOGIC ---
-@@ -1738,6 +1826,8 @@
-     }
- 
-     modal.classList.remove('hidden');
-+    toggleMainContent(true);
-+    setModalFocus(modal.id);
- }
- 
- function handleQuizAttempt(answer) {
-@@ -1769,6 +1859,7 @@
-         // Close modal after delay
-         setTimeout(() => {
-             document.getElementById('quiz-modal').classList.add('hidden');
-+        toggleMainContent(false);
-         }, 1500);
-     } else {
-         feedback.innerText = result.message;
-@@ -1835,6 +1926,7 @@
- 
-     document.getElementById('close-quiz').addEventListener('click', () => {
-         document.getElementById('quiz-modal').classList.add('hidden');
-+        toggleMainContent(false);
-     });
- 
-     // Keyboard Navigation
-@@ -1923,7 +2015,11 @@
- }
- 
- function toggleSettings() {
--    document.getElementById('settings-modal').classList.toggle('hidden');
-+    const modal = document.getElementById('settings-modal');
-+    modal.classList.toggle('hidden');
-+    const isHidden = modal.classList.contains('hidden');
-+    toggleMainContent(!isHidden);
-+    if (!isHidden) setModalFocus('settings-modal');
- }
- 
- function showTab(tabName) {
-@@ -1975,17 +2071,17 @@
- function setupMicButton(buttonElement, onTranscript) {
-     if (!buttonElement) return;
- 
--    // Remove old listeners (cloning is a quick hack to clear listeners)
--    const newBtn = buttonElement.cloneNode(true);
--    buttonElement.parentNode.replaceChild(newBtn, buttonElement);
--    buttonElement = newBtn;
-+    // Remove any existing signal to prevent duplicated events
-+    if (buttonElement._abortController) {
-+        buttonElement._abortController.abort();
-+    }
-+    buttonElement._abortController = new AbortController();
-+    const signal = buttonElement._abortController.signal;
- 
-     let isRecording = false;
--    let holdTimeout = null;
- 
-     buttonElement.addEventListener('mousedown', async () => {
-         const mode = settingsManager.get('audio', 'recordingMode');
--
-         if (mode === 'hold') {
-             console.log("🎤 Hold Mode: Start");
-             const result = await audioEngine.startRecording();
-@@ -1996,11 +2092,10 @@
-                 alert(`Cannot record: ${result.error}`);
+             if (editingId) {
+-                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
++                const targetRoomInput = document.getElementById('memory-target-room');
++                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
++                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL, targetRoomId);
+             } else {
+-                stateManager.addItem(currentRoomId, newConcept, newURL);
++                const newItem = stateManager.addItem(currentRoomId, newConcept, newURL);
++                const targetRoomInput = document.getElementById('memory-target-room');
++                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
++                if (targetRoomId) {
++                    stateManager.updateItemDetails(currentRoomId, newItem.id, newConcept, newURL, targetRoomId);
++                }
              }
-         }
--    });
-+    }, { signal });
  
-     buttonElement.addEventListener('mouseup', async () => {
-         const mode = settingsManager.get('audio', 'recordingMode');
--
-         if (mode === 'hold') {
-              console.log("🎤 Hold Mode: Stop");
-              buttonElement.classList.remove('recording');
-@@ -2014,11 +2109,10 @@
-                  buttonElement.innerText = '⚠️ Error';
-              }
-         }
--    });
-+    }, { signal });
+             modal.classList.add('hidden');
+@@ -1815,7 +1945,7 @@
  
-     buttonElement.addEventListener('click', async () => {
-         const mode = settingsManager.get('audio', 'recordingMode');
--
-         if (mode === 'toggle') {
-             if (!isRecording) {
-                 console.log("🎤 Toggle Mode: Start");
-@@ -2045,7 +2139,7 @@
-                 }
-             }
-         }
--    });
-+    }, { signal });
+         setupMicButton(micBtn, (text) => {
+             input.value = text;
+-            // Optional: Auto-submit? Let's wait for user confirmation
++            handleQuizAttempt(text, true); // Auto-submit for voice for a seamless experience
+         });
+ 
+         submitBtn.classList.remove('hidden');
+@@ -1830,11 +1960,11 @@
+     setModalFocus(modal.id);
  }
  
+-function handleQuizAttempt(answer) {
++function handleQuizAttempt(answer, isVoice = false) {
+     if (!activeGatekeeper || !currentTargetItem) return;
  
-@@ -3229,11 +3323,13 @@
-     padding: 20px;
-     font-size: 1.5em;
-     font-weight: 700;
--    color: var(--text-header);
--    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
-+    color: var(--text-main);
-     opacity: 0; /* Hidden by default for dual coding */
-     transform: translateY(10px);
-     transition: all 0.3s ease;
-+    text-align: center;
-+    width: 100%;
-+    box-sizing: border-box;
- }
+     // Normalize answer (trim/lowercase done in Gatekeeper, but good practice here too)
+-    const result = activeGatekeeper.checkAnswer(answer);
++    const result = activeGatekeeper.checkAnswer(answer, isVoice);
+     const feedback = document.getElementById('quiz-feedback');
  
- /* Always show label on active if not dual coding strict, or on hover */
-@@ -3265,8 +3361,9 @@
-     position: absolute;
-     top: 15px;
-     left: 15px;
--    background: rgba(255,255,255,0.1);
--    border: none;
-+    background: var(--bg-modal-overlay);
-+    border: 1px solid var(--border-main);
-+    color: var(--text-main);
-     border-radius: 50%;
-     width: 36px;
-     height: 36px;
-@@ -3274,6 +3371,7 @@
-     cursor: pointer;
-     opacity: 0;
-     transition: all 0.2s;
-+    backdrop-filter: blur(4px);
- }
- .carousel-item:hover .edit-btn { opacity: 1; }
- .edit-btn:hover { background: var(--accent-color); color: #000; }
-@@ -3614,6 +3712,14 @@
-     animation: pop 0.3s ease-out;
- }
- 
-+.carousel-item:focus-visible {
-+    outline: 2px solid var(--accent-color);
-+    outline-offset: 4px;
-+}
-+.carousel-item:focus:not(:focus-visible) {
-+    outline: none;
-+}
-+
+     if (result.success) {
+@@ -2145,6 +2275,116 @@
  
  
  ================================================================
++File: ./src/audio_drone.js
++================================================================
++/**
++ * audio_drone.js
++ * Procedural SRS Soundscapes using Web Audio API.
++ * Generates an ambient drone that becomes more dissonant based on the room's memory decay.
++ */
++
++class AudioDrone {
++    constructor() {
++        this.ctx = null;
++        this.oscillators = [];
++        this.gainNode = null;
++        this.filterNode = null;
++        this.isPlaying = false;
++
++        // Base frequencies for a consonant chord (e.g., C minor for focus)
++        this.baseFreqs = [130.81, 155.56, 196.00];
++    }
++
++    init() {
++        if (!this.ctx) {
++            const AudioContext = window.AudioContext || window.webkitAudioContext;
++            this.ctx = new AudioContext();
++
++            this.gainNode = this.ctx.createGain();
++            this.gainNode.gain.value = 0;
++
++            this.filterNode = this.ctx.createBiquadFilter();
++            this.filterNode.type = 'lowpass';
++            this.filterNode.frequency.value = 400;
++
++            this.gainNode.connect(this.filterNode);
++            this.filterNode.connect(this.ctx.destination);
++        }
++    }
++
++    start() {
++        this.init();
++        if (this.ctx.state === 'suspended') {
++            this.ctx.resume();
++        }
++
++        if (this.isPlaying) return;
++
++        this.oscillators = this.baseFreqs.map(freq => {
++            const osc = this.ctx.createOscillator();
++            osc.type = 'sine'; // Smooth ambient tone
++            osc.frequency.value = freq;
++            osc.connect(this.gainNode);
++            osc.start();
++            return osc;
++        });
++
++        // Fade in
++        this.gainNode.gain.setTargetAtTime(0.1, this.ctx.currentTime, 2);
++        this.isPlaying = true;
++    }
++
++    stop() {
++        if (!this.isPlaying) return;
++
++        // Fade out
++        this.gainNode.gain.setTargetAtTime(0, this.ctx.currentTime, 1);
++
++        setTimeout(() => {
++            this.oscillators.forEach(osc => {
++                osc.stop();
++                osc.disconnect();
++            });
++            this.oscillators = [];
++            this.isPlaying = false;
++        }, 2000);
++    }
++
++    /**
++     * Modulates the soundscape based on the decay ratio (0.0 to 1.0)
++     * High decay = dissonance (detuning), darker filter, slightly louder.
++     */
++    updateDecay(decayRatio) {
++        if (!this.isPlaying || !this.ctx) return;
++
++        // Max detune in cents (100 = 1 semitone)
++        // High decay creates an eerie out-of-tune chorus effect
++        const maxDetune = 50;
++
++        this.oscillators.forEach((osc, index) => {
++            // Apply different detune amounts to different oscillators for complexity
++            const detuneAmount = (index % 2 === 0 ? 1 : -1) * maxDetune * decayRatio;
++            osc.detune.setTargetAtTime(detuneAmount, this.ctx.currentTime, 2);
++        });
++
++        // Darken filter as decay increases (muffled memory)
++        const minFreq = 150;
++        const maxFreq = 600;
++        const targetFreq = maxFreq - (decayRatio * (maxFreq - minFreq));
++        this.filterNode.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 2);
++
++        // Increase volume slightly for tension
++        const baseVolume = 0.05;
++        const targetVolume = baseVolume + (decayRatio * 0.05);
++        this.gainNode.gain.setTargetAtTime(targetVolume, this.ctx.currentTime, 2);
++    }
++}
++
++export const droneEngine = new AudioDrone();
++
++
++
++================================================================
+ File: ./src/audio_engine.js
+ ================================================================
+ /**
+@@ -2462,7 +2702,7 @@
+      * Validates the user's answer and updates scaling history.
+      * @param {String} userAnswer
+      */
+-    checkAnswer(userAnswer) {
++    checkAnswer(userAnswer, isVoice = false) {
+         // Normalize strings (ignore case, whitespace) for fair grading
+         const normUser = this.normalize(userAnswer);
+         const normTarget = this.normalize(this.targetAnswer);
+@@ -2475,7 +2715,7 @@
+ 
+         // 2. Fuzzy Match
+         const dist = this.calculateLevenshtein(normUser, normTarget);
+-        const threshold = this.getFuzzyThreshold(normTarget.length);
++        const threshold = isVoice ? this.getVoiceFuzzyThreshold(normTarget.length) : this.getFuzzyThreshold(normTarget.length);
+ 
+         if (dist <= threshold) {
+             this.consecutiveSuccesses++;
+@@ -2486,6 +2726,12 @@
+         // Failure in Dynamic mode resets progress to ensure mastery
+         if (this.type === 'DYNAMIC') this.consecutiveSuccesses = 0;
+         return { success: false, message: "The gate remains shut.", newStreak: 0 };
++    }
++
++    getVoiceFuzzyThreshold(length) {
++        if (length <= 4) return 2;
++        if (length <= 8) return 4;
++        return 6; // 'mitochondria' (12) vs 'might o condria' is dist 5. So we allow up to half length for voice matching roughly.
+     }
+ 
+     getFuzzyThreshold(length) {
+@@ -2613,6 +2859,7 @@
+ 
+ import { stateManager } from './state_manager.js';
+ import { settingsManager } from './settings_manager.js';
++import { droneEngine } from './audio_drone.js';
+ 
+ export class RitualMode {
+     constructor() {
+@@ -2651,6 +2898,8 @@
+             this.overlay.id = 'ritual-overlay';
+             this.overlay.className = 'ritual-overlay';
+             document.body.appendChild(this.overlay);
++        droneEngine.start();
++        this.updateDrone();
+         }
+ 
+         this.overlay.innerHTML = `
+@@ -2740,6 +2989,7 @@
+     }
+ 
+     end() {
++        droneEngine.stop();
+         if (this.overlay) {
+             this.overlay.classList.add('hidden');
+             this.overlay.remove(); // Clean up DOM
+@@ -3104,7 +3354,7 @@
+     /**
+      * Updates item details (Editing).
+      */
+-    updateItemDetails(roomId, itemId, newConcept, newVisualURL) {
++    updateItemDetails(roomId, itemId, newConcept, newVisualURL, targetRoomId = null) {
+         const room = this.state.rooms[roomId];
+         if (!room) return;
+         const itemIndex = room.items.findIndex(i => i.id == itemId);
+@@ -3113,6 +3363,7 @@
+         const item = room.items[itemIndex];
+         if (newConcept) item.concept = newConcept;
+         if (newVisualURL) item.visualURL = newVisualURL;
++        if (targetRoomId !== null) item.targetRoomId = targetRoomId === '' ? null : targetRoomId;
+ 
+         this.state.rooms[roomId].items[itemIndex] = item;
+         this.saveState();
+@@ -3162,6 +3413,93 @@
+     /**
+      * Reset everything (Debug/Ritual)
+      */
++
++    /**
++     * Generates a JSON export of the current state.
++     */
++    exportStateJSON() {
++        return JSON.stringify(this.state, null, 2);
++    }
++
++    /**
++     * Previews a merge operation to let the UI display what will change.
++     * @param {Object} importedState
++     * @returns {Object} diff - Information about new rooms, new items, and updated items.
++     */
++    previewMerge(importedState) {
++        const diff = {
++            newRooms: [],
++            roomsWithNewItems: [],
++            totalNewItems: 0,
++            totalUpdatedItems: 0
++        };
++
++        if (!importedState || !importedState.rooms) return diff;
++
++        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
++            const existingRoom = this.state.rooms[roomId];
++
++            if (!existingRoom) {
++                diff.newRooms.push(incomingRoom.name);
++                diff.totalNewItems += incomingRoom.items.length;
++            } else {
++                let newItems = 0;
++                let updatedItems = 0;
++
++                incomingRoom.items.forEach(incomingItem => {
++                    const existingItem = existingRoom.items.find(i => i.id === incomingItem.id);
++                    if (!existingItem) {
++                        newItems++;
++                    } else if (incomingItem.lastReviewed > existingItem.lastReviewed) {
++                        updatedItems++; // Only overwrite stats if incoming is newer
++                    }
++                });
++
++                if (newItems > 0 || updatedItems > 0) {
++                    diff.roomsWithNewItems.push(existingRoom.name);
++                    diff.totalNewItems += newItems;
++                    diff.totalUpdatedItems += updatedItems;
++                }
++            }
++        }
++
++        return diff;
++    }
++
++    /**
++     * Performs a non-destructive merge of imported state.
++     * Overwrites item stats only if incoming lastReviewed is more recent.
++     */
++    executeMerge(importedState) {
++        if (!importedState || !importedState.rooms) return false;
++
++        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
++            const existingRoom = this.state.rooms[roomId];
++
++            if (!existingRoom) {
++                // Entire room is new, just copy it over
++                this.state.rooms[roomId] = incomingRoom;
++            } else {
++                // Merge items
++                incomingRoom.items.forEach(incomingItem => {
++                    const existingItemIndex = existingRoom.items.findIndex(i => i.id === incomingItem.id);
++                    if (existingItemIndex === -1) {
++                        existingRoom.items.push(incomingItem);
++                    } else {
++                        // Conflict resolution: keep the most recently reviewed
++                        const existingItem = existingRoom.items[existingItemIndex];
++                        if (incomingItem.lastReviewed > existingItem.lastReviewed) {
++                            existingRoom.items[existingItemIndex] = { ...existingItem, ...incomingItem };
++                        }
++                    }
++                });
++            }
++        }
++
++        this.saveState();
++        return true;
++    }
++
+     reset() {
+         this.state = { rooms: DEFAULT_ROOMS };
+         this.saveState();
+@@ -3721,6 +4059,34 @@
+ }
+ 
+ 
++/* --- Diegetic Decay Analytics --- */
++.room-decay-light {
++    filter: sepia(0.2) saturate(0.9);
++    transition: filter 2s ease;
++}
++
++.room-decay-medium {
++    filter: sepia(0.4) saturate(0.7) contrast(0.9);
++    transition: filter 2s ease;
++}
++
++.room-decay-heavy {
++    filter: sepia(0.6) saturate(0.4) contrast(0.8) blur(0.5px);
++    transition: filter 2s ease;
++    box-shadow: inset 0 0 100px rgba(0,0,0,0.5); /* Creepy vignette */
++}
++
++/* Add a subtle dust overlay for heavy decay */
++.room-decay-heavy::after {
++    content: '';
++    position: absolute;
++    top: 0; left: 0; right: 0; bottom: 0;
++    pointer-events: none;
++    background-image: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.4) 120%);
++    z-index: 10;
++}
++
++
+ 
+ ================================================================
+ File: ./verification/verify_carousel.py
