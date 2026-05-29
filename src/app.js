@@ -84,11 +84,7 @@ if (typeof window !== 'undefined') window.navigateBack = navigateBack;
 if (typeof window !== 'undefined') window.popNavStackTo = function(index) {
     const targetRoomId = roomNavStack[index];
     roomNavStack = roomNavStack.slice(0, index);
-    currentRoomId = targetRoomId;
-    const select = document.getElementById('room-select');
-    if (select) select.value = currentRoomId;
-    renderCarousel(currentRoomId);
-    updateBreadcrumbs();
+    navigateToRoom(targetRoomId); // Navigates but clears stack after index since viaWormhole=false
 };
 
 let audioEngine = new AudioEngine();
@@ -131,7 +127,23 @@ function refreshRoomList() {
 
     });
 
-    // Visual decay analytics have been moved to updateCarouselUI to avoid reference errors.
+    // --- Diegetic Decay Analytics ---
+    // If a significant portion of the room is overdue, apply room-wide visual decay
+    const mainView = document.querySelector('.carousel-view');
+    if (mainView && room.items.length > 0) {
+        const decayRatio = overdueCount / room.items.length;
+
+        // Remove existing decay classes
+        mainView.classList.remove('room-decay-light', 'room-decay-medium', 'room-decay-heavy');
+
+        if (decayRatio > 0.75) {
+            mainView.classList.add('room-decay-heavy');
+        } else if (decayRatio > 0.5) {
+            mainView.classList.add('room-decay-medium');
+        } else if (decayRatio > 0.25) {
+            mainView.classList.add('room-decay-light');
+        }
+    }
 }
 
 

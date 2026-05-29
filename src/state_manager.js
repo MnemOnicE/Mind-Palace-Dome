@@ -218,14 +218,14 @@ class StateManager {
                 this.state.rooms[roomId] = incomingRoom;
             } else {
                 // Merge items
-                (incomingRoom.items || []).forEach(incomingItem => {
+                incomingRoom.items.forEach(incomingItem => {
                     const existingItemIndex = existingRoom.items.findIndex(i => i.id === incomingItem.id);
                     if (existingItemIndex === -1) {
                         existingRoom.items.push(incomingItem);
                     } else {
                         // Conflict resolution: keep the most recently reviewed
                         const existingItem = existingRoom.items[existingItemIndex];
-                        if ((incomingItem.lastReviewed || 0) > (existingItem.lastReviewed || 0)) {
+                        if (incomingItem.lastReviewed > existingItem.lastReviewed) {
                             existingRoom.items[existingItemIndex] = { ...existingItem, ...incomingItem };
                         }
                     }
