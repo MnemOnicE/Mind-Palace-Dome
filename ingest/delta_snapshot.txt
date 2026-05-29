@@ -1,534 +1,82 @@
 --- Previous Snapshot
 +++ Current Snapshot
-@@ -257,6 +257,9 @@
-                 <select id="room-select" class="dropdown"></select>
-                 <button id="btn-new-room" class="btn small-btn" title="Create New Room">➕ Room</button>
-             </div>
-+            <button id="btn-export-sync" class="btn small-btn" aria-label="Export Palace">📤 Export</button>
-+            <button id="btn-import-sync" class="btn small-btn" aria-label="Import Palace">📥 Import</button>
-+            <input type="file" id="file-import-sync" accept=".json" style="display: none;" />
-             <button id="btn-settings" class="btn small-btn" aria-label="Open Settings">⚙️ Settings</button>
-             <button id="btn-ritual" class="btn small-btn" aria-label="Start Ritual Mode">🕯️ Ritual Mode</button>
-         </div>
-@@ -396,6 +399,28 @@
-     </div>
- 
-     <script type="module" src="./src/app.js"></script>
-+
-+    <!-- Merge Preview Modal -->
-+    <div id="merge-modal" class="modal hidden" aria-hidden="true" role="dialog" aria-labelledby="merge-title">
-+        <div class="modal-content">
-+            <h2 id="merge-title">Blueprint Sync</h2>
-+            <div id="merge-diff-content">
-+                <!-- Diff details will be injected here -->
-+            </div>
-+
-+                <div class="input-group">
-+                    <label for="memory-target-room">Wormhole to Room (Optional ID):</label>
-+                    <input type="text" id="memory-target-room" placeholder="e.g. narnia-room" />
-+                    <small class="hint">Makes this item a door to another room.</small>
-+                </div>
-+
-+                <div class="modal-actions">
-+                <button id="btn-merge-confirm" class="btn primary-btn">Accept Merge</button>
-+                <button id="btn-merge-cancel" class="btn secondary-btn">Cancel</button>
-+            </div>
-+        </div>
-+    </div>
-+
- </body>
- </html>
- 
-@@ -1327,7 +1352,84 @@
- // State
- let activeGatekeeper = null;
- let currentTargetItem = null;
-+
- let currentRoomId = 'foyer';
-+let roomNavStack = []; // History for breadcrumbs
-+
-+function navigateToRoom(roomId, viaWormhole = false) {
-+    if (!stateManager.getRoom(roomId)) {
-+        alert("Room " + roomId + " does not exist.");
-+        return;
-+    }
-+
-+    if (viaWormhole) {
-+        roomNavStack.push(currentRoomId);
-+    } else {
-+        // If changing via dropdown, clear stack
-+        roomNavStack = [];
-+    }
-+
-+    currentRoomId = roomId;
-+    const select = document.getElementById('room-select');
-+    if (select) select.value = currentRoomId;
-+
-+    renderCarousel(currentRoomId);
-+    updateBreadcrumbs();
-+}
-+
-+function navigateBack() {
-+    if (roomNavStack.length === 0) return;
-+    const previousRoomId = roomNavStack.pop();
-+
-+    currentRoomId = previousRoomId;
-+    const select = document.getElementById('room-select');
-+    if (select) select.value = currentRoomId;
-+
-+    renderCarousel(currentRoomId);
-+    updateBreadcrumbs();
-+}
-+
-+function updateBreadcrumbs() {
-+    const breadcrumbEl = document.getElementById('breadcrumb-trail');
-+    if (!breadcrumbEl) return;
-+
-+    if (roomNavStack.length === 0) {
-+        breadcrumbEl.innerHTML = '';
-+        return;
-+    }
-+
-+    let html = '';
-+
-+    // Base room
-+    const baseRoom = stateManager.getRoom(roomNavStack[0]);
-+    if (baseRoom) html += `<span class="breadcrumb-item link" onclick="window.navigateToRoom('${baseRoom.id}')">${baseRoom.name}</span> > `;
-+
-+    // Intermediate
-+    for (let i = 1; i < roomNavStack.length; i++) {
-+        const room = stateManager.getRoom(roomNavStack[i]);
-+        if (room) {
-+             html += `<span class="breadcrumb-item link" onclick="window.popNavStackTo(${i})">${room.name}</span> > `;
-+        }
-+    }
-+
-+    // Current
-+    const currentRoom = stateManager.getRoom(currentRoomId);
-+    if (currentRoom) html += `<span class="breadcrumb-item active">${currentRoom.name}</span>`;
-+
-+    // Add escape hatch
-+    html += ` <button class="btn small-btn" onclick="window.navigateBack()">↩ Back</button>`;
-+
-+    breadcrumbEl.innerHTML = html;
-+}
-+
-+if (typeof window !== 'undefined') window.navigateToRoom = navigateToRoom;
-+if (typeof window !== 'undefined') window.navigateBack = navigateBack;
-+if (typeof window !== 'undefined') window.popNavStackTo = function(index) {
-+    const targetRoomId = roomNavStack[index];
-+    roomNavStack = roomNavStack.slice(0, index);
-+    navigateToRoom(targetRoomId); // Navigates but clears stack after index since viaWormhole=false
-+};
-+
- let audioEngine = new AudioEngine();
- let currentLociIndex = 0;
- let tourInterval = null;
-@@ -1365,8 +1467,28 @@
-         option.innerText = room.name;
-         if (room.id === currentRoomId) option.selected = true;
-         select.appendChild(option);
-+
-     });
--}
-+
-+    // --- Diegetic Decay Analytics ---
-+    // If a significant portion of the room is overdue, apply room-wide visual decay
-+    const mainView = document.querySelector('.carousel-view');
-+    if (mainView && room.items.length > 0) {
-+        const decayRatio = overdueCount / room.items.length;
-+
-+        // Remove existing decay classes
-+        mainView.classList.remove('room-decay-light', 'room-decay-medium', 'room-decay-heavy');
-+
-+        if (decayRatio > 0.75) {
-+            mainView.classList.add('room-decay-heavy');
-+        } else if (decayRatio > 0.5) {
-+            mainView.classList.add('room-decay-medium');
-+        } else if (decayRatio > 0.25) {
-+            mainView.classList.add('room-decay-light');
-+        }
-+    }
-+}
-+
- 
- function renderCarousel(roomId) {
-     const roomContainer = document.getElementById('room-view');
-@@ -1541,13 +1663,14 @@
- function updateCarouselUI(room, container) {
-     const items = container.querySelectorAll('.carousel-item');
-     if (items.length !== room.items.length) {
--        // Mismatch (added/removed item), force re-render
--        container.parentNode.innerHTML = ''; // Clear to trigger rebuild next time
-+        container.parentNode.innerHTML = '';
-         renderCarousel(room.id);
-         return;
-     }
- 
-     const now = Date.now();
-+    let overdueCount = 0;
-+
- 
-     items.forEach((el, index) => {
-         let stateClass = 'carousel-item';
-@@ -1683,9 +1806,16 @@
-             const editingId = modal.dataset.editingId;
- 
-             if (editingId) {
--                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
-+                const targetRoomInput = document.getElementById('memory-target-room');
-+                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
-+                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL, targetRoomId);
-             } else {
--                stateManager.addItem(currentRoomId, newConcept, newURL);
-+                const newItem = stateManager.addItem(currentRoomId, newConcept, newURL);
-+                const targetRoomInput = document.getElementById('memory-target-room');
-+                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
-+                if (targetRoomId) {
-+                    stateManager.updateItemDetails(currentRoomId, newItem.id, newConcept, newURL, targetRoomId);
-+                }
-             }
- 
-             modal.classList.add('hidden');
-@@ -1815,7 +1945,7 @@
- 
-         setupMicButton(micBtn, (text) => {
-             input.value = text;
--            // Optional: Auto-submit? Let's wait for user confirmation
-+            handleQuizAttempt(text, true); // Auto-submit for voice for a seamless experience
-         });
- 
-         submitBtn.classList.remove('hidden');
-@@ -1830,11 +1960,11 @@
-     setModalFocus(modal.id);
- }
- 
--function handleQuizAttempt(answer) {
-+function handleQuizAttempt(answer, isVoice = false) {
-     if (!activeGatekeeper || !currentTargetItem) return;
- 
-     // Normalize answer (trim/lowercase done in Gatekeeper, but good practice here too)
--    const result = activeGatekeeper.checkAnswer(answer);
-+    const result = activeGatekeeper.checkAnswer(answer, isVoice);
-     const feedback = document.getElementById('quiz-feedback');
- 
-     if (result.success) {
-@@ -2145,6 +2275,116 @@
- 
- 
- ================================================================
-+File: ./src/audio_drone.js
-+================================================================
-+/**
-+ * audio_drone.js
-+ * Procedural SRS Soundscapes using Web Audio API.
-+ * Generates an ambient drone that becomes more dissonant based on the room's memory decay.
-+ */
-+
-+class AudioDrone {
-+    constructor() {
-+        this.ctx = null;
-+        this.oscillators = [];
-+        this.gainNode = null;
-+        this.filterNode = null;
-+        this.isPlaying = false;
-+
-+        // Base frequencies for a consonant chord (e.g., C minor for focus)
-+        this.baseFreqs = [130.81, 155.56, 196.00];
-+    }
-+
-+    init() {
-+        if (!this.ctx) {
-+            const AudioContext = window.AudioContext || window.webkitAudioContext;
-+            this.ctx = new AudioContext();
-+
-+            this.gainNode = this.ctx.createGain();
-+            this.gainNode.gain.value = 0;
-+
-+            this.filterNode = this.ctx.createBiquadFilter();
-+            this.filterNode.type = 'lowpass';
-+            this.filterNode.frequency.value = 400;
-+
-+            this.gainNode.connect(this.filterNode);
-+            this.filterNode.connect(this.ctx.destination);
-+        }
-+    }
-+
-+    start() {
-+        this.init();
-+        if (this.ctx.state === 'suspended') {
-+            this.ctx.resume();
-+        }
-+
-+        if (this.isPlaying) return;
-+
-+        this.oscillators = this.baseFreqs.map(freq => {
-+            const osc = this.ctx.createOscillator();
-+            osc.type = 'sine'; // Smooth ambient tone
-+            osc.frequency.value = freq;
-+            osc.connect(this.gainNode);
-+            osc.start();
-+            return osc;
-+        });
-+
-+        // Fade in
-+        this.gainNode.gain.setTargetAtTime(0.1, this.ctx.currentTime, 2);
-+        this.isPlaying = true;
-+    }
-+
-+    stop() {
-+        if (!this.isPlaying) return;
-+
-+        // Fade out
-+        this.gainNode.gain.setTargetAtTime(0, this.ctx.currentTime, 1);
-+
-+        setTimeout(() => {
-+            this.oscillators.forEach(osc => {
-+                osc.stop();
-+                osc.disconnect();
-+            });
-+            this.oscillators = [];
-+            this.isPlaying = false;
-+        }, 2000);
-+    }
-+
-+    /**
-+     * Modulates the soundscape based on the decay ratio (0.0 to 1.0)
-+     * High decay = dissonance (detuning), darker filter, slightly louder.
-+     */
-+    updateDecay(decayRatio) {
-+        if (!this.isPlaying || !this.ctx) return;
-+
-+        // Max detune in cents (100 = 1 semitone)
-+        // High decay creates an eerie out-of-tune chorus effect
-+        const maxDetune = 50;
-+
-+        this.oscillators.forEach((osc, index) => {
-+            // Apply different detune amounts to different oscillators for complexity
-+            const detuneAmount = (index % 2 === 0 ? 1 : -1) * maxDetune * decayRatio;
-+            osc.detune.setTargetAtTime(detuneAmount, this.ctx.currentTime, 2);
-+        });
-+
-+        // Darken filter as decay increases (muffled memory)
-+        const minFreq = 150;
-+        const maxFreq = 600;
-+        const targetFreq = maxFreq - (decayRatio * (maxFreq - minFreq));
-+        this.filterNode.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 2);
-+
-+        // Increase volume slightly for tension
-+        const baseVolume = 0.05;
-+        const targetVolume = baseVolume + (decayRatio * 0.05);
-+        this.gainNode.gain.setTargetAtTime(targetVolume, this.ctx.currentTime, 2);
-+    }
-+}
-+
-+export const droneEngine = new AudioDrone();
+@@ -131,6 +131,54 @@
+ 1. [Step 1]
+ 2. [Step 2]
+ 3. [Code Snippet if applicable]
 +
 +
 +
 +================================================================
- File: ./src/audio_engine.js
- ================================================================
- /**
-@@ -2462,7 +2702,7 @@
-      * Validates the user's answer and updates scaling history.
-      * @param {String} userAnswer
-      */
--    checkAnswer(userAnswer) {
-+    checkAnswer(userAnswer, isVoice = false) {
-         // Normalize strings (ignore case, whitespace) for fair grading
-         const normUser = this.normalize(userAnswer);
-         const normTarget = this.normalize(this.targetAnswer);
-@@ -2475,7 +2715,7 @@
- 
-         // 2. Fuzzy Match
-         const dist = this.calculateLevenshtein(normUser, normTarget);
--        const threshold = this.getFuzzyThreshold(normTarget.length);
-+        const threshold = isVoice ? this.getVoiceFuzzyThreshold(normTarget.length) : this.getFuzzyThreshold(normTarget.length);
- 
-         if (dist <= threshold) {
-             this.consecutiveSuccesses++;
-@@ -2486,6 +2726,12 @@
-         // Failure in Dynamic mode resets progress to ensure mastery
-         if (this.type === 'DYNAMIC') this.consecutiveSuccesses = 0;
-         return { success: false, message: "The gate remains shut.", newStreak: 0 };
-+    }
++File: ./CONTRIBUTING.md
++================================================================
++# Contributing to dome-icile
 +
-+    getVoiceFuzzyThreshold(length) {
-+        if (length <= 4) return 2;
-+        if (length <= 8) return 4;
-+        return 6; // 'mitochondria' (12) vs 'might o condria' is dist 5. So we allow up to half length for voice matching roughly.
-     }
- 
-     getFuzzyThreshold(length) {
-@@ -2613,6 +2859,7 @@
- 
- import { stateManager } from './state_manager.js';
- import { settingsManager } from './settings_manager.js';
-+import { droneEngine } from './audio_drone.js';
- 
- export class RitualMode {
-     constructor() {
-@@ -2651,6 +2898,8 @@
-             this.overlay.id = 'ritual-overlay';
-             this.overlay.className = 'ritual-overlay';
-             document.body.appendChild(this.overlay);
-+        droneEngine.start();
-+        this.updateDrone();
-         }
- 
-         this.overlay.innerHTML = `
-@@ -2740,6 +2989,7 @@
-     }
- 
-     end() {
-+        droneEngine.stop();
-         if (this.overlay) {
-             this.overlay.classList.add('hidden');
-             this.overlay.remove(); // Clean up DOM
-@@ -3104,7 +3354,7 @@
-     /**
-      * Updates item details (Editing).
-      */
--    updateItemDetails(roomId, itemId, newConcept, newVisualURL) {
-+    updateItemDetails(roomId, itemId, newConcept, newVisualURL, targetRoomId = null) {
-         const room = this.state.rooms[roomId];
-         if (!room) return;
-         const itemIndex = room.items.findIndex(i => i.id == itemId);
-@@ -3113,6 +3363,7 @@
-         const item = room.items[itemIndex];
-         if (newConcept) item.concept = newConcept;
-         if (newVisualURL) item.visualURL = newVisualURL;
-+        if (targetRoomId !== null) item.targetRoomId = targetRoomId === '' ? null : targetRoomId;
- 
-         this.state.rooms[roomId].items[itemIndex] = item;
-         this.saveState();
-@@ -3162,6 +3413,93 @@
-     /**
-      * Reset everything (Debug/Ritual)
-      */
++First off, thank you for considering contributing to dome-icile! 🧠🏰
 +
-+    /**
-+     * Generates a JSON export of the current state.
-+     */
-+    exportStateJSON() {
-+        return JSON.stringify(this.state, null, 2);
-+    }
++This project has a specific architecture and development philosophy. Please read these guidelines before submitting a Pull Request.
 +
-+    /**
-+     * Previews a merge operation to let the UI display what will change.
-+     * @param {Object} importedState
-+     * @returns {Object} diff - Information about new rooms, new items, and updated items.
-+     */
-+    previewMerge(importedState) {
-+        const diff = {
-+            newRooms: [],
-+            roomsWithNewItems: [],
-+            totalNewItems: 0,
-+            totalUpdatedItems: 0
-+        };
++## 🏗️ Technology Stack & Philosophy
 +
-+        if (!importedState || !importedState.rooms) return diff;
++*   **Vanilla JavaScript Only:** This project intentionally avoids heavy frontend frameworks (React, Vue, Angular). We rely on ES6 Modules (`import`/`export`) and native DOM APIs.
++*   **No Inline CSS/JS:** Keep the separation of concerns strict. CSS goes in `src/styles.css`. Event listeners should be attached dynamically in JS, not inline in HTML (`onclick="..."`).
++*   **CSS Variables:** We rely heavily on CSS variables for dynamic theming (Dark, Light, Matrix, Cyberpunk).
 +
-+        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
-+            const existingRoom = this.state.rooms[roomId];
++## 🤖 The "Agents" Workflow (Important)
 +
-+            if (!existingRoom) {
-+                diff.newRooms.push(incomingRoom.name);
-+                diff.totalNewItems += incomingRoom.items.length;
-+            } else {
-+                let newItems = 0;
-+                let updatedItems = 0;
++This codebase uses a persona-based development workflow. Before making complex architectural decisions, refactoring, or adding dependencies, you are expected to simulate a "Standup Meeting" with our defined agents (Brain, Bolt, Boom, Sentinel, Palette, Scribe, Scope, Orbit).
 +
-+                incomingRoom.items.forEach(incomingItem => {
-+                    const existingItem = existingRoom.items.find(i => i.id === incomingItem.id);
-+                    if (!existingItem) {
-+                        newItems++;
-+                    } else if (incomingItem.lastReviewed > existingItem.lastReviewed) {
-+                        updatedItems++; // Only overwrite stats if incoming is newer
-+                    }
-+                });
++Please read [AGENTS.md](AGENTS.md) to understand how this protocol works. Decisions from this "debate" should be documented in your PR description or commit messages.
 +
-+                if (newItems > 0 || updatedItems > 0) {
-+                    diff.roomsWithNewItems.push(existingRoom.name);
-+                    diff.totalNewItems += newItems;
-+                    diff.totalUpdatedItems += updatedItems;
-+                }
-+            }
-+        }
++## 🧪 Testing
 +
-+        return diff;
-+    }
++We use lightweight Node.js scripts for logic testing (no Jest/Mocha required). Tests are located in the root directory.
 +
-+    /**
-+     * Performs a non-destructive merge of imported state.
-+     * Overwrites item stats only if incoming lastReviewed is more recent.
-+     */
-+    executeMerge(importedState) {
-+        if (!importedState || !importedState.rooms) return false;
++To run tests:
++```bash
++node test_srs.mjs
++node test_persistence.mjs
++node test_settings.mjs
++node test_themes.mjs
++```
++Please ensure all tests pass before submitting a PR. If you are adding a new feature, consider adding a test for it if it involves standalone logic.
 +
-+        for (const [roomId, incomingRoom] of Object.entries(importedState.rooms)) {
-+            const existingRoom = this.state.rooms[roomId];
++## 🚀 Pull Request Process
 +
-+            if (!existingRoom) {
-+                // Entire room is new, just copy it over
-+                this.state.rooms[roomId] = incomingRoom;
-+            } else {
-+                // Merge items
-+                incomingRoom.items.forEach(incomingItem => {
-+                    const existingItemIndex = existingRoom.items.findIndex(i => i.id === incomingItem.id);
-+                    if (existingItemIndex === -1) {
-+                        existingRoom.items.push(incomingItem);
-+                    } else {
-+                        // Conflict resolution: keep the most recently reviewed
-+                        const existingItem = existingRoom.items[existingItemIndex];
-+                        if (incomingItem.lastReviewed > existingItem.lastReviewed) {
-+                            existingRoom.items[existingItemIndex] = { ...existingItem, ...incomingItem };
-+                        }
-+                    }
-+                });
-+            }
-+        }
++1.  **Iterative Commits:** The standard workflow is to append commits to your existing branch during PR iteration.
++2.  **Clean up:** Remove any temporary scratchpad scripts (e.g., Python scripts used for visual verification) before requesting a review.
++3.  **Merge Conflicts:** If merge conflicts persist or the remote branch is corrupted, the strategy is to submit the verified state to a new branch to open a fresh PR.
 +
-+        this.saveState();
-+        return true;
-+    }
++## 📚 Further Reading
 +
-     reset() {
-         this.state = { rooms: DEFAULT_ROOMS };
-         this.saveState();
-@@ -3721,6 +4059,34 @@
- }
++For more details on how the system works, check the `dev/` directory:
++*   [Getting Started Guide](dev/guides/getting_started.md)
++*   [System Architecture](dev/architecture/system_overview.md)
  
  
-+/* --- Diegetic Decay Analytics --- */
-+.room-decay-light {
-+    filter: sepia(0.2) saturate(0.9);
-+    transition: filter 2s ease;
-+}
-+
-+.room-decay-medium {
-+    filter: sepia(0.4) saturate(0.7) contrast(0.9);
-+    transition: filter 2s ease;
-+}
-+
-+.room-decay-heavy {
-+    filter: sepia(0.6) saturate(0.4) contrast(0.8) blur(0.5px);
-+    transition: filter 2s ease;
-+    box-shadow: inset 0 0 100px rgba(0,0,0,0.5); /* Creepy vignette */
-+}
-+
-+/* Add a subtle dust overlay for heavy decay */
-+.room-decay-heavy::after {
-+    content: '';
-+    position: absolute;
-+    top: 0; left: 0; right: 0; bottom: 0;
-+    pointer-events: none;
-+    background-image: radial-gradient(circle, transparent 20%, rgba(0,0,0,0.4) 120%);
-+    z-index: 10;
-+}
-+
-+
  
- ================================================================
- File: ./verification/verify_carousel.py
+@@ -164,13 +212,14 @@
+     *   *Choice:* Multiple choice.
+     *   *Dynamic:* Scales difficulty based on your streak.
+ *   **Ritual Mode:** A focused "Room View" for daily meditation and spaced repetition reviews.
+-*   **Whisper Integration (Planned/Experimental):** The codebase contains placeholders for OpenAI Whisper (Speech-to-Text), but it is not yet fully implemented.
++*   **Whisper Integration:** Full support for OpenAI Whisper (Speech-to-Text) using the MediaRecorder API to transcribe audio directly into your inputs.
+ 
+ ## 🚀 Getting Started
+ 
+ ### Prerequisites
+ *   A modern web browser.
+ *   An API Key for Google Gemini (Optional, for image generation).
++*   An API Key for OpenAI (Optional, for Whisper Speech-to-Text and high-quality Text-to-Speech).
+ *   Python 3 (for local serving).
+ 
+ ### Installation
+@@ -189,7 +238,7 @@
+     ```bash
+     ./startup.sh
+     ```
+-    *Note: This script simply runs `python3 -m http.server`.*
++    *Note: This script simply runs `python3 -m http.server`. Because dome-icile uses native ES6 Modules (`import`/`export`), you **must** serve it via an HTTP server. Opening `index.html` directly in your browser via the `file://` protocol will not work.*
+ 
+ ## 🧠 How It Works
+ 
