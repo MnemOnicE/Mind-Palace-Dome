@@ -25,13 +25,14 @@ For developers (and curious users), we have extensive documentation in the `dev/
     *   *Choice:* Multiple choice.
     *   *Dynamic:* Scales difficulty based on your streak.
 *   **Ritual Mode:** A focused "Room View" for daily meditation and spaced repetition reviews.
-*   **Whisper Integration (Planned/Experimental):** The codebase contains placeholders for OpenAI Whisper (Speech-to-Text), but it is not yet fully implemented.
+*   **Whisper Integration:** Full support for OpenAI Whisper (Speech-to-Text) using the MediaRecorder API to transcribe audio directly into your inputs.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 *   A modern web browser.
 *   An API Key for Google Gemini (Optional, for image generation).
+*   An API Key for OpenAI (Optional, for Whisper Speech-to-Text and high-quality Text-to-Speech).
 *   Python 3 (for local serving).
 
 ### Installation
@@ -50,7 +51,7 @@ For developers (and curious users), we have extensive documentation in the `dev/
     ```bash
     ./startup.sh
     ```
-    *Note: This script simply runs `python3 -m http.server`.*
+    *Note: This script simply runs `python3 -m http.server`. Because dome-icile uses native ES6 Modules (`import`/`export`), you **must** serve it via an HTTP server. Opening `index.html` directly in your browser via the `file://` protocol will not work.*
 
 ## 🧠 How It Works
 
