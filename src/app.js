@@ -84,7 +84,11 @@ if (typeof window !== 'undefined') window.navigateBack = navigateBack;
 if (typeof window !== 'undefined') window.popNavStackTo = function(index) {
     const targetRoomId = roomNavStack[index];
     roomNavStack = roomNavStack.slice(0, index);
-    navigateToRoom(targetRoomId); // Navigates but clears stack after index since viaWormhole=false
+    currentRoomId = targetRoomId;
+    const select = document.getElementById('room-select');
+    if (select) select.value = currentRoomId;
+    renderCarousel(currentRoomId);
+    updateBreadcrumbs();
 };
 
 let audioEngine = new AudioEngine();
