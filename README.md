@@ -32,7 +32,7 @@ For developers (and curious users), we have extensive documentation in the `dev/
 ### Prerequisites
 *   A modern web browser.
 *   An API Key for Google Gemini (Optional, for image generation).
-*   An API Key for OpenAI (Optional, for Whisper Speech-to-Text).
+*   An API Key for OpenAI (Optional, for Whisper Speech-to-Text and high-quality Text-to-Speech).
 *   Python 3 (for local serving).
 
 ### Installation
