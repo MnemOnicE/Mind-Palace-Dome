@@ -9,7 +9,84 @@ import { RitualMode } from './ritual_mode.js';
 // State
 let activeGatekeeper = null;
 let currentTargetItem = null;
+
 let currentRoomId = 'foyer';
+let roomNavStack = []; // History for breadcrumbs
+
+function navigateToRoom(roomId, viaWormhole = false) {
+    if (!stateManager.getRoom(roomId)) {
+        alert("Room " + roomId + " does not exist.");
+        return;
+    }
+
+    if (viaWormhole) {
+        roomNavStack.push(currentRoomId);
+    } else {
+        // If changing via dropdown, clear stack
+        roomNavStack = [];
+    }
+
+    currentRoomId = roomId;
+    const select = document.getElementById('room-select');
+    if (select) select.value = currentRoomId;
+
+    renderCarousel(currentRoomId);
+    updateBreadcrumbs();
+}
+
+function navigateBack() {
+    if (roomNavStack.length === 0) return;
+    const previousRoomId = roomNavStack.pop();
+
+    currentRoomId = previousRoomId;
+    const select = document.getElementById('room-select');
+    if (select) select.value = currentRoomId;
+
+    renderCarousel(currentRoomId);
+    updateBreadcrumbs();
+}
+
+function updateBreadcrumbs() {
+    const breadcrumbEl = document.getElementById('breadcrumb-trail');
+    if (!breadcrumbEl) return;
+
+    if (roomNavStack.length === 0) {
+        breadcrumbEl.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+
+    // Base room
+    const baseRoom = stateManager.getRoom(roomNavStack[0]);
+    if (baseRoom) html += `<span class="breadcrumb-item link" onclick="window.navigateToRoom('${baseRoom.id}')">${baseRoom.name}</span> > `;
+
+    // Intermediate
+    for (let i = 1; i < roomNavStack.length; i++) {
+        const room = stateManager.getRoom(roomNavStack[i]);
+        if (room) {
+             html += `<span class="breadcrumb-item link" onclick="window.popNavStackTo(${i})">${room.name}</span> > `;
+        }
+    }
+
+    // Current
+    const currentRoom = stateManager.getRoom(currentRoomId);
+    if (currentRoom) html += `<span class="breadcrumb-item active">${currentRoom.name}</span>`;
+
+    // Add escape hatch
+    html += ` <button class="btn small-btn" onclick="window.navigateBack()">↩ Back</button>`;
+
+    breadcrumbEl.innerHTML = html;
+}
+
+if (typeof window !== 'undefined') window.navigateToRoom = navigateToRoom;
+if (typeof window !== 'undefined') window.navigateBack = navigateBack;
+if (typeof window !== 'undefined') window.popNavStackTo = function(index) {
+    const targetRoomId = roomNavStack[index];
+    roomNavStack = roomNavStack.slice(0, index);
+    navigateToRoom(targetRoomId); // Navigates but clears stack after index since viaWormhole=false
+};
+
 let audioEngine = new AudioEngine();
 let currentLociIndex = 0;
 let tourInterval = null;
@@ -47,8 +124,28 @@ function refreshRoomList() {
         option.innerText = room.name;
         if (room.id === currentRoomId) option.selected = true;
         select.appendChild(option);
+
     });
+
+    // --- Diegetic Decay Analytics ---
+    // If a significant portion of the room is overdue, apply room-wide visual decay
+    const mainView = document.querySelector('.carousel-view');
+    if (mainView && room.items.length > 0) {
+        const decayRatio = overdueCount / room.items.length;
+
+        // Remove existing decay classes
+        mainView.classList.remove('room-decay-light', 'room-decay-medium', 'room-decay-heavy');
+
+        if (decayRatio > 0.75) {
+            mainView.classList.add('room-decay-heavy');
+        } else if (decayRatio > 0.5) {
+            mainView.classList.add('room-decay-medium');
+        } else if (decayRatio > 0.25) {
+            mainView.classList.add('room-decay-light');
+        }
+    }
 }
+
 
 function renderCarousel(roomId) {
     const roomContainer = document.getElementById('room-view');
@@ -223,13 +320,14 @@ function renderCarousel(roomId) {
 function updateCarouselUI(room, container) {
     const items = container.querySelectorAll('.carousel-item');
     if (items.length !== room.items.length) {
-        // Mismatch (added/removed item), force re-render
-        container.parentNode.innerHTML = ''; // Clear to trigger rebuild next time
+        container.parentNode.innerHTML = '';
         renderCarousel(room.id);
         return;
     }
 
     const now = Date.now();
+    let overdueCount = 0;
+
 
     items.forEach((el, index) => {
         let stateClass = 'carousel-item';
@@ -365,9 +463,16 @@ function openEditModal(item = null) {
             const editingId = modal.dataset.editingId;
 
             if (editingId) {
-                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL);
+                const targetRoomInput = document.getElementById('memory-target-room');
+                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
+                stateManager.updateItemDetails(currentRoomId, parseInt(editingId, 10), newConcept, newURL, targetRoomId);
             } else {
-                stateManager.addItem(currentRoomId, newConcept, newURL);
+                const newItem = stateManager.addItem(currentRoomId, newConcept, newURL);
+                const targetRoomInput = document.getElementById('memory-target-room');
+                const targetRoomId = targetRoomInput ? targetRoomInput.value.trim() : null;
+                if (targetRoomId) {
+                    stateManager.updateItemDetails(currentRoomId, newItem.id, newConcept, newURL, targetRoomId);
+                }
             }
 
             modal.classList.add('hidden');
@@ -497,7 +602,7 @@ function launchQuizModal(quiz) {
 
         setupMicButton(micBtn, (text) => {
             input.value = text;
-            // Optional: Auto-submit? Let's wait for user confirmation
+            handleQuizAttempt(text, true); // Auto-submit for voice for a seamless experience
         });
 
         submitBtn.classList.remove('hidden');
@@ -512,11 +617,11 @@ function launchQuizModal(quiz) {
     setModalFocus(modal.id);
 }
 
-function handleQuizAttempt(answer) {
+function handleQuizAttempt(answer, isVoice = false) {
     if (!activeGatekeeper || !currentTargetItem) return;
 
     // Normalize answer (trim/lowercase done in Gatekeeper, but good practice here too)
-    const result = activeGatekeeper.checkAnswer(answer);
+    const result = activeGatekeeper.checkAnswer(answer, isVoice);
     const feedback = document.getElementById('quiz-feedback');
 
     if (result.success) {

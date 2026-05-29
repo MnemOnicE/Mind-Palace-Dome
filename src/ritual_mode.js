@@ -1,6 +1,7 @@
 
 import { stateManager } from './state_manager.js';
 import { settingsManager } from './settings_manager.js';
+import { droneEngine } from './audio_drone.js';
 
 export class RitualMode {
     constructor() {
@@ -39,6 +40,8 @@ export class RitualMode {
             this.overlay.id = 'ritual-overlay';
             this.overlay.className = 'ritual-overlay';
             document.body.appendChild(this.overlay);
+        droneEngine.start();
+        this.updateDrone();
         }
 
         this.overlay.innerHTML = `
@@ -128,6 +131,7 @@ export class RitualMode {
     }
 
     end() {
+        droneEngine.stop();
         if (this.overlay) {
             this.overlay.classList.add('hidden');
             this.overlay.remove(); // Clean up DOM
